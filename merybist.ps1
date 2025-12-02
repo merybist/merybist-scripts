@@ -36,7 +36,7 @@ $apps = @(
         name = "Telegram"
         url = "https://telegram.org/dl/desktop/win"
         args = ""
-        installPath = "C:\Users\$env:PC\AppData\Roaming\Telegram Desktop\Telegram.exe"
+        installPath = "C:\Users\$env:USERNAME\AppData\Roaming\Telegram Desktop\Telegram.exe"
         regKey = ""
     },
     @{
@@ -50,7 +50,7 @@ $apps = @(
         name = "Visual Studio Code"
         url = "https://update.code.visualstudio.com/latest/win32-x64-user/stable"
         args = "/silent"
-        installPath = "C:\Users\$env:PC\AppData\Local\Programs\Microsoft VS Code\Code.exe"
+        installPath = "C:\Users\$env:USERNAME\AppData\Local\Programs\Microsoft VS Code\Code.exe"
         regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Visual Studio Code"
     },
     @{
@@ -64,7 +64,7 @@ $apps = @(
         name = "Spotify"
         url = "https://download.scdn.co/SpotifySetup.exe"
         args = "/silent"
-        installPath = "C:\Users\$env:PC\AppData\Roaming\Spotify\Spotify.exe"
+        installPath = "C:\Users\$env:USERNAME\AppData\Roaming\Spotify\Spotify.exe"
         regKey = ""
     }
 )
