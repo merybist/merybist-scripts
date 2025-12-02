@@ -10,6 +10,11 @@ $apps = @(
         args = "/S"
     },
     @{
+        name = "Dolphin Emulator"
+        url = "https://dl.dolphin-emu.org/releases/dolphin-x64-latest.exe"
+        args = "/S"
+    },
+    @{
         name = "Telegram"
         url = "https://telegram.org/dl/desktop/win"
         args = ""
