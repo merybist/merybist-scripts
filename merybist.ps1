@@ -28,7 +28,7 @@ $apps = @(
     @{ 
         Name = "Visual Studio Code | DirectLink"
         Url = "https://update.code.visualstudio.com/latest/win32-x64-user/stable"
-        Args = "--silent --mergetasks=!runcode"
+        Args = ""
         InstallPath = "$env:USERPROFILE\AppData\Local\Programs\Microsoft VS Code\Code.exe"
     },
     @{ 
