@@ -20,15 +20,23 @@ $services = @(
 )
 
 foreach ($svc in $services) {
-    Write-Host "Disabling service: $svc"
-    try {
-        Stop-Service $svc -Force -ErrorAction SilentlyContinue
-        Set-Service $svc -StartupType Disabled
+    Write-Host "Trying to disable service: $svc"
+    $serviceObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
+    if ($serviceObj) {
+        try {
+            Stop-Service $svc -Force -ErrorAction SilentlyContinue
+            Set-Service $svc -StartupType Disabled
+            Write-Host "Disabled $svc"
+        }
+        catch {
+            Write-Host "Could not disable ${svc}: $($_.Exception.Message)"
+        }
     }
-    catch {
-        Write-Host "Could not disable ${svc}: $($_)"
+    else {
+        Write-Host "Service $svc not found, skipping."
     }
 }
+
 
 Write-Host "`nDisabling background apps..."
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" -Name "GlobalUserDisabled" -Value 1
