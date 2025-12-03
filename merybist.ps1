@@ -27,7 +27,7 @@ $apps = @(
     },
     @{ 
         Name = "Visual Studio Code | DirectLink"
-        Url = "https://code.visualstudio.com/download#"
+        Url = "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64"
         Args = "/silent"
         InstallPath = "$env:USERPROFILE\AppData\Local\Programs\Microsoft VS Code\Code.exe"
     },
