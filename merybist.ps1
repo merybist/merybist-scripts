@@ -15,7 +15,7 @@ $apps = @(
     },
     @{ 
         Name = "Telegram | DirectLink"
-        Url = "https://telegram.org/dl/desktop/win64"
+        Url = "https://td.telegram.org/tx64/tsetup-x64.6.3.4.exe"
         Args = ""
         InstallPath = "$env:USERPROFILE\AppData\Roaming\Telegram Desktop\Telegram.exe"
     },
