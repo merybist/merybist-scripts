@@ -216,20 +216,20 @@ function Action-StatusSummary {
 # ===== Interactive menu =====
 function Show-Menu {
     Clear-Host
-    Write-Host "=== merybist Optimization Menu / Меню оптимізації Windows ===`n" -ForegroundColor Cyan
-    Write-Host "1. Enable Ultimate Performance power plan / Увімкнути режим живлення Ultimate Performance"
-    Write-Host "2. Disable non-essential services (basic) / Вимкнути непотрібні служби (базові)"
-    Write-Host "3. Disable conditional services (ICS, Search) / Вимкнути додаткові служби (ICS, Пошук)"
-    Write-Host "4. Disable background apps & Game DVR/Game Bar / Вимкнути фонові програми та Game DVR/Game Bar"
-    Write-Host "5. Set visual effects to performance / Налаштувати візуальні ефекти для продуктивності"
-    Write-Host "6. Apply registry performance tweaks / Застосувати реєстрові твіки продуктивності"
-    Write-Host "7. Apply basic network tweaks / Оптимізація мережі (базова)"
-    Write-Host "8. Apply aggressive network tweaks (netsh) / Агресивна оптимізація мережі (netsh)"
-    Write-Host "9. Run safe cleanup / Безпечне очищення системи"
-    Write-Host "10. Run aggressive cleanup / Агресивне очищення системи"
-    Write-Host "11. Create system restore point / Створити точку відновлення"
-    Write-Host "12. Show status summary / Показати статус системи"
-    Write-Host "0. Exit / Вихід`n"
+    Write-Host "=== merybist Optimization Menu ===`n" -ForegroundColor Cyan
+    Write-Host "1. Enable Ultimate Performance power plan"
+    Write-Host "2. Disable non-essential services (basic)"
+    Write-Host "3. Disable conditional services (ICS, Search)"
+    Write-Host "4. Disable background apps & Game DVR/Game Bar"
+    Write-Host "5. Set visual effects to performance"
+    Write-Host "6. Apply registry performance tweaks"
+    Write-Host "7. Apply basic network tweaks)"
+    Write-Host "8. Apply aggressive network tweaks (netsh"
+    Write-Host "9. Run safe cleanup"
+    Write-Host "10. Run aggressive cleanup"
+    Write-Host "11. Create system restore point"
+    Write-Host "12. Show status summary"
+    Write-Host "0. Exit"
 }
 
 do {
