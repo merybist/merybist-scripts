@@ -1,111 +1,102 @@
-# Папка для інсталяторів
-$downloadDir = "C:\Installers"
-if (!(Test-Path $downloadDir)) {
-    New-Item -ItemType Directory -Path $downloadDir | Out-Null
-}
-
-function Test-Installed($appName, $installPath, $regKey) {
-    # Перевірка по папці
-    if ($installPath -and (Test-Path $installPath)) {
-        return $true
-    }
-    # Перевірка по реєстру
-    if ($regKey) {
-        $reg = Get-ItemProperty -Path $regKey -ErrorAction SilentlyContinue
-        if ($reg) { return $true }
-    }
-    return $false
-}
+# Interactive Windows fast-setup installer by merybist
 
 $apps = @(
-    @{
-        name = "Chrome"
-        url = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
-        args = "/silent /install"
-        installPath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-        regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Google Chrome"
+    @{ 
+        Name = "Chrome"
+        Url = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
+        Args = "/silent /install"
+        InstallPath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
     },
-    @{
-        name = "WinRAR"
-        url = "https://www.rarlab.com/rar/winrar-x64-713uk.exe"
-        args = "/S"
-        installPath = "C:\Program Files\WinRAR\WinRAR.exe"
-        regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WinRAR archiver"
+    @{ 
+        Name = "WinRAR"
+        Url = "https://www.rarlab.com/rar/winrar-x64-713uk.exe"
+        Args = "/S"
+        InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
     },
-    @{
-        name = "Telegram"
-        url = "https://telegram.org/dl/desktop/win"
-        args = ""
-        installPath = "C:\Users\$env:USERNAME\AppData\Roaming\Telegram Desktop\Telegram.exe"
-        regKey = ""
+    @{ 
+        Name = "Telegram"
+        Url = "https://telegram.org/dl/desktop/win"
+        Args = ""
+        InstallPath = "$env:USERPROFILE\AppData\Roaming\Telegram Desktop\Telegram.exe"
     },
-    @{
-        name = "Dolphin Emulator"
-        url = "https://app.dolphin-anty-mirror3.net/anty-app/dolphin-anty-win-latest.exe?t=1764717643528"
-        args = "/S"
-        installPath = "C:\Program Files\Dolphin\Dolphin.exe"
-        regKey = ""
+    @{ 
+        Name = "Dolphin Emulator"
+        Url = "https://app.dolphin-anti-mirror3.net/anty-app/dolphin-anty-win-latest.exe?t=1764717643528"
+        Args = "/S"
+        InstallPath = "C:\Program Files\Dolphin\Dolphin.exe"
     },
-    @{
-        name = "Visual Studio Code"
-        url = "https://update.code.visualstudio.com/latest/win32-x64-user/stable"
-        args = "/silent"
-        installPath = "C:\Users\$env:USERNAME\AppData\Local\Programs\Microsoft VS Code\Code.exe"
-        regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Visual Studio Code"
+    @{ 
+        Name = "Visual Studio Code"
+        Url = "https://update.code.visualstudio.com/latest/win32-x64-user/stable"
+        Args = "/silent"
+        InstallPath = "$env:USERPROFILE\AppData\Local\Programs\Microsoft VS Code\Code.exe"
     },
-    @{
-        name = "7-Zip"
-        url = "https://www.7-zip.org/a/7z2400-x64.exe"
-        args = "/S"
-        installPath = "C:\Program Files\7-Zip\7z.exe"
-        regKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\7-Zip"
-    },
-    @{
-        name = "Spotify"
-        url = "https://download.scdn.co/SpotifySetup.exe"
-        args = "/silent"
-        installPath = "C:\Users\$env:USERNAME\AppData\Roaming\Spotify\Spotify.exe"
-        regKey = ""
+    @{ 
+        Name = "Spotify"
+        Url = "https://download.scdn.co/SpotifySetup.exe"
+        Args = "/silent"
+        InstallPath = "$env:USERPROFILE\AppData\Roaming\Spotify\Spotify.exe"
     }
 )
 
-foreach ($app in $apps) {
-    $path = "$downloadDir\$($app.name).exe"
-
-    # Якщо програма вже встановлена → пропускаємо все
-    if (Test-Installed $app.name $app.installPath $app.regKey) {
-        Write-Host "`nSkipping $($app.name), already installed."
-        continue
-    }
-
-    # Якщо інсталятор вже є → не качаємо
-    if (Test-Path $path) {
-        Write-Host "`nInstaller for $($app.name) already exists, skipping download."
-    }
-    else {
-        Write-Host "`nDownloading $($app.name)..."
-        try {
-            Invoke-WebRequest $app.url -OutFile $path -UseBasicParsing
-            Write-Host "Downloaded $($app.name)."
-        }
-        catch {
-            Write-Host "ERROR downloading $($app.name): $_"
-            continue
-        }
-    }
-
-    Write-Host "Installing $($app.name)..."
-    try {
-        if ($app.args -ne "") {
-            Start-Process $path -ArgumentList $app.args -Wait
+function Show-Menu {
+    Clear-Host
+    Write-Host "=== merybist Windows Fast Installer ===`n"
+    for ($i = 0; $i -lt $apps.Count; $i++) {
+        $app = $apps[$i]
+        # Check if installed
+        if (Test-Path $app.InstallPath) {
+            Write-Host "$($i+1). $($app.Name) [INSTALLED]" -ForegroundColor Green
         }
         else {
-            Start-Process $path -Wait
+            Write-Host "$($i+1). $($app.Name)" -ForegroundColor Yellow
         }
     }
+    Write-Host "0. Exit`n"
+    Write-Host "Select a program number to install:"
+}
+
+function Install-App {
+    param($app)
+    if (Test-Path $app.InstallPath) {
+        Write-Host "$($app.Name) is already installed. Skipping." -ForegroundColor Green
+        return
+    }
+    $downloadDir = "$env:TEMP\merybist-installer"
+    if (!(Test-Path $downloadDir)) { New-Item -Path $downloadDir -ItemType Directory | Out-Null }
+    $fileName = $app.Url.Split('/')[-1]
+    $targetPath = Join-Path $downloadDir $fileName
+    Write-Host "Downloading $($app.Name)..."
+    try {
+        Invoke-WebRequest $app.Url -OutFile $targetPath
+        Write-Host "Installing $($app.Name)..."
+        if ($app.Args -ne "") {
+            Start-Process -FilePath $targetPath -ArgumentList $app.Args -Wait
+        }
+        else {
+            Start-Process -FilePath $targetPath -Wait
+        }
+        Write-Host "$($app.Name) install finished.`n" -ForegroundColor Cyan
+    }
     catch {
-        Write-Host "ERROR installing $($app.name): $_"
+        Write-Host "ERROR installing $($app.Name): $_" -ForegroundColor Red
     }
 }
 
-Write-Host "`nAll tasks finished by merybist"
+do {
+    Show-Menu
+    $input = Read-Host "Enter your choice"
+    if ($input -match '^(\d+)$' -and [int]$input -ge 1 -and [int]$input -le $apps.Count) {
+        Install-App $apps[[int]$input-1]
+        Write-Host "`nPress any key to return to menu..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+    elseif ($input -eq '0') {
+        Write-Host "Exiting installer. Bye!"
+        break
+    }
+    else {
+        Write-Host "Invalid selection. Try again."
+        Start-Sleep -Seconds 2
+    }
+} while ($true)
