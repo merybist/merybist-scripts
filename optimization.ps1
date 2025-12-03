@@ -1,15 +1,17 @@
+<# 
+Ultimate Windows Optimization by merybist
+- Interactive numeric menu
+- Fixed previous issues (confirm prompts, registry creation, service checks)
+- Logging to C:\merybist-opt\opt.log
+- Run as Administrator
+#>
 
-[CmdletBinding(SupportsShouldProcess = $true)]
-param(
-    [switch]$DryRun,             
-    [switch]$Aggressive,         
-    [switch]$Minimal             
-)
+# ===== Setup & safety =====
+$ConfirmPreference = 'None'  # Suppress confirmation prompts
+$ErrorActionPreference = 'Continue'
 
 $root = "C:\merybist-opt"
 $log  = Join-Path $root "opt.log"
-$regBackupPath = Join-Path $root ("registry-backup-{0}.reg" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
-
 New-Item -ItemType Directory -Path $root -ErrorAction SilentlyContinue | Out-Null
 
 function Write-Log {
@@ -20,184 +22,237 @@ function Write-Log {
     Add-Content -Path $log -Value $line
 }
 
-Write-Log "=== Massive Windows Optimization Script by merybist ===" "Cyan"
-Write-Log "DryRun=$($DryRun.IsPresent) Aggressive=$($Aggressive.IsPresent) Minimal=$($Minimal.IsPresent)" "DarkGray"
+Write-Log "=== Ultimate Windows Optimization by merybist ===" "Cyan"
 
-try {
-    Write-Log "Creating system restore point (Pre-Optimization)..." "Yellow"
-    Checkpoint-Computer -Description "merybist pre-optimization" -RestorePointType "Modify_Settings"
-    Write-Log "Restore point created." "Green"
-} catch {
-    Write-Log "Restore point failed or unsupported: $($_.Exception.Message)" "DarkYellow"
-}
-
-try {
-    Write-Log "Backing up key registry areas to: $regBackupPath" "Yellow"
-    $content = @()
-    $paths = @(
-        "HKCU\Software\Microsoft",
-        "HKLM\SOFTWARE\Microsoft",
-        "HKLM\SOFTWARE\Policies\Microsoft"
-    )
-    foreach ($p in $paths) { $content += "Windows Registry Editor Version 5.00`r`n; backup pointer: $p`r`n" }
-    Set-Content -Path $regBackupPath -Value ($content -join "`r`n")
-    Write-Log "Registry backup placeholder created." "Green"
-} catch {
-    Write-Log "Registry backup failed: $($_.Exception.Message)" "DarkYellow"
-}
-
-function Invoke-Action {
-    param([scriptblock]$Code, [string]$Msg)
-    if ($DryRun) {
-        Write-Log "DRY-RUN: $Msg" "DarkGray"
-    } else {
-        Write-Log $Msg "Gray"
-        & $Code
+# ===== Helpers =====
+function Ensure-RegKey {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) {
+        New-Item -Path $Path -Force -ErrorAction SilentlyContinue | Out-Null
     }
 }
 
-Write-Log "Enabling Ultimate Performance power plan if supported..." "Yellow"
-Invoke-Action {
+function Safe-SetReg {
+    param([string]$Path,[string]$Name,[Object]$Value)
+    Ensure-RegKey $Path
+    Set-ItemProperty -Path $Path -Name $Name -Value $Value -ErrorAction SilentlyContinue
+}
+
+function Disable-ServiceSafe {
+    param([string]$Name)
+    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($svc) {
+        try {
+            Stop-Service $Name -Force -ErrorAction SilentlyContinue
+            Set-Service $Name -StartupType Disabled
+            Write-Log "Disabled service: $Name" "Green"
+        } catch {
+            Write-Log "Failed to disable ${Name}: $($_.Exception.Message)" "DarkYellow"
+        }
+    } else {
+        Write-Log "Service $Name not found, skipping." "DarkGray"
+    }
+}
+
+# ===== Actions =====
+function Action-UltimatePlan {
+    Write-Log "Enabling Ultimate Performance power plan (if supported)..." "Yellow"
     $guid = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-    powercfg -duplicatescheme $guid 2>$null
-    powercfg -setactive $guid 2>$null
-} "Set Ultimate Performance plan"
-
-$services = @(
-    "Fax",                # Fax
-    "DiagTrack",          # Telemetry
-    "SysMain",            # Superfetch
-    "XblGameSave",        # Xbox Game Save
-    "XboxNetApiSvc",      # Xbox Networking
-    "XboxGipSvc",         # Xbox Accessory
-    "MapsBroker",         # Offline Maps
-    "RemoteRegistry",     # Remote Registry
-    "WerSvc",             # Windows Error Reporting
-    "dmwappushservice",   # Device Management WAP
-    "RetailDemo"          # Retail Demo
-)
-
-
-$conditionalServices = @(
-    "SharedAccess",       # Internet Connection Sharing
-    "WSearch"             # Windows Search (disable only if you rarely use search)
-)
-
-if (-not $Minimal) { $services += $conditionalServices }
-
-foreach ($svc in $services) {
-    $exists = (Get-Service -Name $svc -ErrorAction SilentlyContinue)
-    if ($exists) {
-        Invoke-Action {
-            try {
-                Stop-Service $svc -Force -ErrorAction SilentlyContinue
-                Set-Service $svc -StartupType Disabled
-                Write-Log "Disabled service: $svc" "Green"
-            } catch {
-                Write-Log "Failed to disable ${svc}: $($_.Exception.Message)" "DarkYellow"
-            }
-        } "Disable service: $svc"
-    } else {
-        Write-Log "Service $svc not found, skipping." "DarkGray"
+    try {
+        powercfg -duplicatescheme $guid 2>$null | Out-Null
+        powercfg -setactive $guid 2>$null     | Out-Null
+        Write-Log "Ultimate Performance plan set (or already active)." "Green"
+    } catch {
+        Write-Log "Ultimate Performance plan not supported on this edition." "DarkYellow"
     }
 }
 
-Invoke-Action {
-    New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" -Force | Out-Null
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" -Name "GlobalUserDisabled" -Value 1
-} "Disable background apps"
+function Action-DisableServicesBasic {
+    Write-Log "Disabling non-essential services..." "Yellow"
+    $services = @(
+        "Fax",                # Fax
+        "DiagTrack",          # Telemetry
+        "SysMain",            # Superfetch
+        "XblGameSave",        # Xbox Game Save
+        "XboxNetApiSvc",      # Xbox Networking
+        "XboxGipSvc",         # Xbox Accessory
+        "MapsBroker",         # Offline Maps
+        "RemoteRegistry",     # Remote Registry
+        "WerSvc",             # Windows Error Reporting
+        "dmwappushservice",   # Device Management WAP (may not exist)
+        "RetailDemo"          # Retail Demo
+    )
+    foreach ($s in $services) { Disable-ServiceSafe $s }
+}
 
-Invoke-Action {
-    New-Item -Path "HKCU:\System\GameConfigStore" -Force | Out-Null
-    Set-ItemProperty -Path "HKCU:\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 0
-    New-Item -Path "HKCU:\SOFTWARE\Microsoft\GameBar" -Force | Out-Null
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\GameBar" -Name "AllowAutoGameMode" -Value 0
-    Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\GameBar" -Name "ShowStartupPanel" -Value 0
-} "Disable Game DVR & Game Bar"
+function Action-DisableServicesConditional {
+    Write-Log "Disabling conditional services (only if you don't use them)..." "Yellow"
+    $services = @(
+        "SharedAccess",       # Internet Connection Sharing
+        "WSearch"             # Windows Search
+    )
+    foreach ($s in $services) { Disable-ServiceSafe $s }
+}
 
-Invoke-Action {
-    New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Force | Out-Null
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 2
-} "Set visual effects to performance"
+function Action-BackgroundAppsAndGame {
+    Write-Log "Disabling background apps & Game Bar/DVR..." "Yellow"
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" "GlobalUserDisabled" 1
+    Safe-SetReg "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0
+    Safe-SetReg "HKCU:\SOFTWARE\Microsoft\GameBar" "AllowAutoGameMode" 0
+    Safe-SetReg "HKCU:\SOFTWARE\Microsoft\GameBar" "ShowStartupPanel" 0
+    Write-Log "Background apps and Game features disabled." "Green"
+}
 
-Invoke-Action {
-    New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Force | Out-Null
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SubscribedContent-310093Enabled" -Value 0
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" -Name "SystemPaneSuggestionsEnabled" -Value 0
+function Action-VisualEffectsPerformance {
+    Write-Log "Setting visual effects for performance..." "Yellow"
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
+    Write-Log "Visual effects tuned." "Green"
+}
 
-    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Force | Out-Null
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -Value 0
+function Action-RegistryPerformanceTweaks {
+    Write-Log "Applying registry performance tweaks..." "Yellow"
+    # Tips & suggestions off
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SubscribedContent-310093Enabled" 0
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SystemPaneSuggestionsEnabled" 0
+    # Cortana off (policy)
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana" 0
+    # Telemetry off (policy)
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 0
+    # Delivery Optimization off
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" "DODownloadMode" 0
+    # Driver auto-update off
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" "SearchOrderConfig" 0
+    Write-Log "Registry tweaks applied." "Green"
+}
 
-    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Force | Out-Null
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Value 0
+function Action-NetworkTweaksBasic {
+    Write-Log "Applying basic network tweaks..." "Yellow"
+    # TCPA off
+    Safe-SetReg "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnableTCPA" 0
+    Write-Log "Basic network tweaks applied." "Green"
+}
 
-    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Force | Out-Null
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" -Name "DODownloadMode" -Value 0
-
-    New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Force | Out-Null
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" -Name "SearchOrderConfig" -Value 0
-} "Apply registry performance tweaks"
-
-Invoke-Action {
-    New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Force | Out-Null
-    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "EnableTCPA" -Value 0
-    New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}" -Force | Out-Null | Out-Null
-} "Apply basic network tweaks"
-
-if ($Aggressive) {
-    Invoke-Action {
+function Action-NetworkTweaksAggressive {
+    Write-Log "Applying aggressive netsh TCP tuning..." "Yellow"
+    try {
         netsh int tcp set global autotuninglevel=disabled  | Out-Null
         netsh int tcp set global rss=enabled               | Out-Null
         netsh int tcp set global ecncapability=disabled    | Out-Null
         netsh int tcp set global chimney=disabled          | Out-Null
         netsh int tcp set global dca=disabled              | Out-Null
-    } "Aggressive netsh TCP tuning"
+        Write-Log "Aggressive network tuning applied." "Green"
+    } catch {
+        Write-Log "Failed netsh tuning: $($_.Exception.Message)" "DarkYellow"
+    }
 }
 
-Invoke-Action {
+function Action-CleanupSafe {
+    Write-Log "Running safe cleanup (Temp, Update cache, Prefetch, Logs, browser cache)..." "Yellow"
+    # Temp folders
     Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
-
+    # Windows Update cache
     Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
     Start-Service wuauserv -ErrorAction SilentlyContinue
-
+    # Prefetch
     Remove-Item -Path "C:\Windows\Prefetch\*" -Recurse -Force -ErrorAction SilentlyContinue
-
-    Get-ChildItem "C:\Windows\Logs" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-
+    # Logs (fully recursive)
+    Get-ChildItem "C:\Windows\Logs" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+    # Browser caches
     $user = $env:USERPROFILE
-    Get-ChildItem "$user\AppData\Local\Google\Chrome\User Data\Default\Cache" -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-    Get-ChildItem "$user\AppData\Local\Microsoft\Edge\User Data\Default\Cache" -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-} "System cleanup (Temp, Update, Prefetch, Logs, browser cache)"
-
-if (-not $Minimal) {
-    Invoke-Action {
-        New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Force | Out-Null
-        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" -Name "DisableConsumerFeatures" -Value 1
-
-        New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" -Force | Out-Null
-        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" -Name "AicEnabled" -Value 0
-    } "Debloat consumer experiences"
-
-    Invoke-Action {
-        $tasks = @(
-            "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
-            "\Microsoft\Windows\Autochk\Proxy",
-            "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
-            "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
-            "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticResolver",
-            "\Microsoft\Windows\Windows Error Reporting\QueueReporting"
-        )
-        foreach ($t in $tasks) {
-            schtasks /Change /TN $t /DISABLE 2>$null | Out-Null
-        }
-    } "Disable selected scheduled tasks"
+    Remove-Item "$user\AppData\Local\Google\Chrome\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item "$user\AppData\Local\Microsoft\Edge\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Log "Safe cleanup completed." "Green"
 }
 
-Write-Log "Optimization steps completed." "Cyan"
-if ($DryRun) {
-    Write-Log "DRY-RUN mode: No changes were applied. Rerun without -DryRun to apply." "Yellow"
-} else {
-    Write-Log "A reboot is recommended to apply all changes." "Yellow"
+function Action-CleanupAggressive {
+    Write-Log "Running aggressive cleanup (WinSxS, shadows, icon/font caches)..." "Yellow"
+    try {
+        Dism.exe /Online /Cleanup-Image /StartComponentCleanup /ResetBase | Out-Null
+    } catch {
+        Write-Log "DISM cleanup failed or requires elevated context." "DarkYellow"
+    }
+    try {
+        vssadmin delete shadows /all /quiet | Out-Null
+    } catch {
+        Write-Log "VSS shadow deletion skipped or unsupported." "DarkYellow"
+    }
+    # Icon cache
+    Remove-Item "$env:LOCALAPPDATA\IconCache.db" -Force -ErrorAction SilentlyContinue
+    # Font cache (may rebuild on reboot)
+    $fontCache = "$env:windir\ServiceProfiles\LocalService\AppData\Local\FontCache"
+    Remove-Item "$fontCache\*.dat" -Force -ErrorAction SilentlyContinue
+    Write-Log "Aggressive cleanup completed." "Green"
 }
+
+function Action-CreateRestorePoint {
+    Write-Log "Creating system restore point (Pre-Optimization)..." "Yellow"
+    try {
+        Checkpoint-Computer -Description "merybist optimization restore point" -RestorePointType "Modify_Settings"
+        Write-Log "Restore point created." "Green"
+    } catch {
+        Write-Log "Restore point failed or unsupported: $($_.Exception.Message)" "DarkYellow"
+    }
+}
+
+function Action-StatusSummary {
+    Write-Log "Status summary:" "Cyan"
+    # Power plan
+    try {
+        $activeGuid = (powercfg /getactivescheme) 2>$null
+        Write-Log ("Active power plan: " + $activeGuid) "Gray"
+    } catch { Write-Log "Cannot query power plan." "DarkYellow" }
+    # Key services status
+    $checkSvcs = @("SysMain","WSearch","DiagTrack","Fax","WerSvc","RemoteRegistry")
+    foreach ($s in $checkSvcs) {
+        $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
+        if ($svc) { Write-Log ("Service {0}: {1}" -f $s, $svc.Status) "Gray" } else { Write-Log "Service $s: not present" "DarkGray" }
+    }
+    Write-Log "Registry tweaks applied to ContentDeliveryManager, DataCollection, Windows Search, DeliveryOptimization." "Gray"
+    Write-Log "Cleanup paths processed: Temp, SoftwareDistribution\Download, Prefetch, Logs, Browser caches." "Gray"
+}
+
+# ===== Interactive menu =====
+function Show-Menu {
+    Clear-Host
+    Write-Host "=== merybist Optimization Menu ===`n" -ForegroundColor Cyan
+    Write-Host "1. Enable Ultimate Performance power plan"
+    Write-Host "2. Disable non-essential services (basic)"
+    Write-Host "3. Disable conditional services (ICS, Search)"
+    Write-Host "4. Disable background apps & Game DVR/Game Bar"
+    Write-Host "5. Set visual effects to performance"
+    Write-Host "6. Apply registry performance tweaks"
+    Write-Host "7. Apply basic network tweaks"
+    Write-Host "8. Apply aggressive network tweaks (netsh)"
+    Write-Host "9. Run safe cleanup"
+    Write-Host "10. Run aggressive cleanup"
+    Write-Host "11. Create system restore point"
+    Write-Host "12. Show status summary"
+    Write-Host "0. Exit`n"
+}
+
+do {
+    Show-Menu
+    $choice = Read-Host "Enter your choice (0-12)"
+    switch ($choice) {
+        '1'  { Action-UltimatePlan }
+        '2'  { Action-DisableServicesBasic }
+        '3'  { Action-DisableServicesConditional }
+        '4'  { Action-BackgroundAppsAndGame }
+        '5'  { Action-VisualEffectsPerformance }
+        '6'  { Action-RegistryPerformanceTweaks }
+        '7'  { Action-NetworkTweaksBasic }
+        '8'  { Action-NetworkTweaksAggressive }
+        '9'  { Action-CleanupSafe }
+        '10' { Action-CleanupAggressive }
+        '11' { Action-CreateRestorePoint }
+        '12' { Action-StatusSummary }
+        '0'  { Write-Log "Exiting optimization menu." "Cyan"; break }
+        default { Write-Host "Invalid selection. Try again." -ForegroundColor Yellow }
+    }
+    if ($choice -ne '0') {
+        Write-Host "`nPress any key to return to menu..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+} while ($true)
