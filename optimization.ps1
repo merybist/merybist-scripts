@@ -26,7 +26,7 @@ foreach ($svc in $services) {
         Set-Service $svc -StartupType Disabled
     }
     catch {
-        Write-Host "Could not disable $svc: $_"
+        Write-Host "Could not disable $svc: $($_)"
     }
 }
 
