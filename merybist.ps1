@@ -21,7 +21,7 @@ $apps = @(
     },
     @{ 
         Name = "Dolphin Emulator | DirectLink"
-        Url = "https://dolphin-anty-cdn.com/anty-app/dolphin-anty-win-latest.exe?t=1764796195810"
+        Url = "https://dolphin-anty-cdn.com/anty-app/dolphin-anty-win-latest.exe"
         Args = "/S"
         InstallPath = "C:\Program Files\Dolphin\Dolphin.exe"
     },
