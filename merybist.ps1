@@ -21,7 +21,7 @@ $apps = @(
     },
     @{ 
         Name = "Dolphin Emulator"
-        Url = "https://app.dolphin-anti-mirror3.net/anty-app/dolphin-anty-win-latest.exe?t=1764717643528"
+        Url = "https://dl.dolphin-emu.org/releases/dolphin-x64-latest.exe"
         Args = "/S"
         InstallPath = "C:\Program Files\Dolphin\Dolphin.exe"
     },
@@ -44,7 +44,6 @@ function Show-Menu {
     Write-Host "=== merybist Windows Fast Installer ===`n"
     for ($i = 0; $i -lt $apps.Count; $i++) {
         $app = $apps[$i]
-        # Check if installed
         if (Test-Path $app.InstallPath) {
             Write-Host "$($i+1). $($app.Name) [INSTALLED]" -ForegroundColor Green
         }
@@ -86,7 +85,7 @@ function Install-App {
 do {
     Show-Menu
     $input = Read-Host "Enter your choice"
-    if ($input -match '^(\d+)$' -and [int]$input -ge 1 -and [int]$input -le $apps.Count) {
+    if ($input -match '^\d+$' -and [int]$input -ge 1 -and [int]$input -le $apps.Count) {
         Install-App $apps[[int]$input-1]
         Write-Host "`nPress any key to return to menu..."
         $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
