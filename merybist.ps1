@@ -3,37 +3,37 @@
 $apps = @(
     @{ 
         Name = "Chrome"
-        Url = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
-        Args = "/silent /install"
+        Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/ChromeSetup.exe"
+        Args = ""
         InstallPath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
     },
     @{ 
         Name = "WinRAR"
-        Url = "https://www.rarlab.com/rar/winrar-x64-713uk.exe"
+        Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/winrar.exe"
         Args = "/S"
         InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
     },
     @{ 
-        Name = "Telegram"
-        Url = "https://telegram.org/dl/desktop/win"
+        Name = "Telegram | DirectLink"
+        Url = "https://telegram.org/dl/desktop/win64"
         Args = ""
         InstallPath = "$env:USERPROFILE\AppData\Roaming\Telegram Desktop\Telegram.exe"
     },
     @{ 
-        Name = "Dolphin Emulator"
-        Url = "https://dl.dolphin-emu.org/releases/dolphin-x64-latest.exe"
+        Name = "Dolphin Emulator | DirectLink"
+        Url = "https://dolphin-anty-cdn.com/anty-app/dolphin-anty-win-latest.exe?t=1764795141954"
         Args = "/S"
         InstallPath = "C:\Program Files\Dolphin\Dolphin.exe"
     },
     @{ 
-        Name = "Visual Studio Code"
-        Url = "https://update.code.visualstudio.com/latest/win32-x64-user/stable"
+        Name = "Visual Studio Code | DirectLink"
+        Url = "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user"
         Args = "/silent"
         InstallPath = "$env:USERPROFILE\AppData\Local\Programs\Microsoft VS Code\Code.exe"
     },
     @{ 
         Name = "Spotify"
-        Url = "https://download.scdn.co/SpotifySetup.exe"
+        Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/SpotifySetup.exe"
         Args = "/silent"
         InstallPath = "$env:USERPROFILE\AppData\Roaming\Spotify\Spotify.exe"
     }
@@ -65,21 +65,28 @@ function Install-App {
     if (!(Test-Path $downloadDir)) { New-Item -Path $downloadDir -ItemType Directory | Out-Null }
     $fileName = $app.Url.Split('/')[-1]
     $targetPath = Join-Path $downloadDir $fileName
-    Write-Host "Downloading $($app.Name)..."
-    try {
-        Invoke-WebRequest $app.Url -OutFile $targetPath
-        Write-Host "Installing $($app.Name)..."
-        if ($app.Args -ne "") {
-            Start-Process -FilePath $targetPath -ArgumentList $app.Args -Wait
+
+    if (!(Test-Path $targetPath)) {
+        Write-Host "Downloading $($app.Name)..."
+        try {
+            Start-BitsTransfer -Source $app.Url -Destination $targetPath
         }
-        else {
-            Start-Process -FilePath $targetPath -Wait
+        catch {
+            Write-Host "ERROR downloading $($app.Name): $_" -ForegroundColor Red
+            return
         }
-        Write-Host "$($app.Name) install finished.`n" -ForegroundColor Cyan
+    } else {
+        Write-Host "$($app.Name) already cached, skipping download." -ForegroundColor Yellow
     }
-    catch {
-        Write-Host "ERROR installing $($app.Name): $_" -ForegroundColor Red
+
+    Write-Host "Installing $($app.Name)..."
+    if ($app.Args -ne "") {
+        Start-Process -FilePath $targetPath -ArgumentList $app.Args -Wait
     }
+    else {
+        Start-Process -FilePath $targetPath -Wait
+    }
+    Write-Host "$($app.Name) install finished.`n" -ForegroundColor Cyan
 }
 
 do {
