@@ -207,7 +207,7 @@ function Action-StatusSummary {
     $checkSvcs = @("SysMain","WSearch","DiagTrack","Fax","WerSvc","RemoteRegistry")
     foreach ($s in $checkSvcs) {
         $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
-        if ($svc) { Write-Log ("Service {0}: {1}" -f $s, $svc.Status) "Gray" } else { Write-Log "Service $s: not present" "DarkGray" }
+        if ($svc) { Write-Log ("Service {0}: {1}" -f $s, $svc.Status) "Gray" } else { Write-Log "Service ${s}: not present" "DarkGray" }
     }
     Write-Log "Registry tweaks applied to ContentDeliveryManager, DataCollection, Windows Search, DeliveryOptimization." "Gray"
     Write-Log "Cleanup paths processed: Temp, SoftwareDistribution\Download, Prefetch, Logs, Browser caches." "Gray"
