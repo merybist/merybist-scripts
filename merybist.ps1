@@ -48,15 +48,13 @@ $apps = @(
         Url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
         Args = "/quiet"
         InstallPath = "C:\Program Files\Tailscale\tailscale.exe"
-    }
-    Write-Host "----------------------"
+    },
     @{ 
         Name = "WinRAR Key"
         Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/rarreg.key"
         Args = ""
-        InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
+        InstallPath = "C:\Program Files\WinRAR\rarreg.key"
     }
-    
 )
 
 function Show-Menu {
@@ -86,7 +84,6 @@ function Install-App {
     $downloadDir = "$env:TEMP\merybist-installer"
     if (!(Test-Path $downloadDir)) { New-Item -Path $downloadDir -ItemType Directory | Out-Null }
 
-    # Generate filename
     $fileName = $app.Url.Split('/')[-1]
     if ($fileName -eq "" -or $fileName -notmatch "\.exe$") {
         $fileName = ($app.Name -replace '[^\w\-]', '') + ".exe"
@@ -94,7 +91,6 @@ function Install-App {
 
     $targetPath = Join-Path $downloadDir $fileName
 
-    # Download
     if (!(Test-Path $targetPath)) {
         Write-Host "Downloading $($app.Name)..."
         try {
@@ -109,7 +105,6 @@ function Install-App {
         Write-Host "$($app.Name) already cached, skipping download." -ForegroundColor Yellow
     }
 
-    # Auto-fix missing .exe extension
     if ($targetPath -notmatch "\.exe$") {
         $newPath = "$targetPath.exe"
         Rename-Item -Path $targetPath -NewName ($newPath | Split-Path -Leaf) -Force
@@ -117,13 +112,11 @@ function Install-App {
         Write-Host "Renamed downloaded file to .exe automatically." -ForegroundColor Yellow
     }
 
-    # Validate file size (avoid HTML downloads)
     if ((Get-Item $targetPath).Length -lt 500000) {
-        Write-Host "Downloaded file is too small and likely not an installer. URL is not a direct .exe." -ForegroundColor Red
+        Write-Host "Downloaded file is too small and likely not an installer." -ForegroundColor Red
         return
     }
 
-    # Install
     Write-Host "Installing $($app.Name)..."
     try {
         if ($app.Args -ne "") {
@@ -143,6 +136,7 @@ function Install-App {
 do {
     Show-Menu
     $input = Read-Host "Enter your choice"
+
     if ($input -match '^\d+$' -and [int]$input -ge 1 -and [int]$input -le $apps.Count) {
         Install-App $apps[[int]$input-1]
         Write-Host "`nPress any key to return to menu..."
@@ -156,6 +150,5 @@ do {
         Write-Host "Invalid selection. Try again."
         Start-Sleep -Seconds 2
     }
-    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
+
 } while ($true)
