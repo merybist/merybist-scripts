@@ -15,7 +15,7 @@ $apps = @(
     },
     @{ 
         Name = "iMe | DirectLink"
-        Url = "https://dl.ime.app/windows/iMeSetup.exe"
+        Url = "https://imem.app/download/desktop/win64"
         Args = "/S"
         InstallPath = "$env:USERPROFILE\AppData\Local\iMe\iMe.exe"
     },
