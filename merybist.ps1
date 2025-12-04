@@ -122,6 +122,7 @@ function Install-App {
             Write-Host "Downloaded file is too small and likely not an installer. URL is not a direct .exe." -ForegroundColor Red
             return
         }
+    }
 
     Write-Host "Installing $($app.Name)..."
     try {
