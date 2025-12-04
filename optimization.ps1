@@ -434,119 +434,255 @@ function Show-MainMenu {
 }
 
 function Show-DefenderMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Windows Defender | SmartScreen | UAC" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Disable Windows Defender"
-    Write-Host " 2. Enable Windows Defender"
-    Write-Host " 3. Disable SmartScreen"
-    Write-Host " 4. Enable SmartScreen"
-    Write-Host " 5. Disable UAC"
-    Write-Host " 6. Enable UAC"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Windows Defender | SmartScreen | UAC" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Disable Windows Defender"
+        Write-Host " 2. Enable Windows Defender"
+        Write-Host " 3. Disable SmartScreen"
+        Write-Host " 4. Enable SmartScreen"
+        Write-Host " 5. Disable UAC"
+        Write-Host " 6. Enable UAC"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $d = Read-Host "Select option"
+
+        switch ($d) {
+            '1' { Action-DisableDefender }
+            '2' { Action-EnableDefender }
+            '3' { Action-DisableSmartScreen }
+            '4' { Action-EnableSmartScreen }
+            '5' { Action-DisableUAC }
+            '6' { Action-EnableUAC }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-ServicesMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Services Optimization" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Disable Basic Services"
-    Write-Host " 2. Disable Conditional Services"
-    Write-Host " 3. Disable Aggressive Services"
-    Write-Host " 4. Enable All Listed Services"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Services Optimization" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Disable Basic Services"
+        Write-Host " 2. Disable Conditional Services"
+        Write-Host " 3. Disable Aggressive Services"
+        Write-Host " 4. Enable All Services"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $s = Read-Host "Select option"
+
+        switch ($s) {
+            '1' { Action-DisableServicesBasic }
+            '2' { Action-DisableServicesConditional }
+            '3' { Action-DisableServicesAggressive }
+            '4' { Action-EnableAllServices }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-BackgroundMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Background Apps & GameDVR" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Disable Background Apps"
-    Write-Host " 2. Enable Background Apps"
-    Write-Host " 3. Disable GameDVR & Game Bar"
-    Write-Host " 4. Enable GameDVR & Game Bar"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Background Apps & GameDVR" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Disable Background Apps"
+        Write-Host " 2. Enable Background Apps"
+        Write-Host " 3. Disable GameDVR"
+        Write-Host " 4. Enable GameDVR"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $b = Read-Host "Select option"
+
+        switch ($b) {
+            '1' { Action-DisableBackgroundApps }
+            '2' { Action-EnableBackgroundApps }
+            '3' { Action-DisableGameDVR }
+            '4' { Action-EnableGameDVR }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-VisualMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Visual Effects" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Set Visual Effects to Performance"
-    Write-Host " 2. Restore Default Visual Effects"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Visual Effects" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Performance Mode"
+        Write-Host " 2. Default Mode"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $v = Read-Host "Select option"
+
+        switch ($v) {
+            '1' { Action-VisualEffectsPerformance }
+            '2' { Action-VisualEffectsDefault }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-RegistryMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Registry Tweaks" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Apply Performance Registry Tweaks"
-    Write-Host " 2. Restore Registry Defaults"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Registry Tweaks" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Apply Performance Tweaks"
+        Write-Host " 2. Restore Defaults"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $r = Read-Host "Select option"
+
+        switch ($r) {
+            '1' { Action-RegistryPerformanceTweaks }
+            '2' { Action-RegistryRestoreDefaults }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-NetworkMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Network Tweaks" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Apply Basic Network Tweaks"
-    Write-Host " 2. Apply Aggressive Network Tweaks"
-    Write-Host " 3. Restore Network Defaults"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Network Tweaks" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Basic Tweaks"
+        Write-Host " 2. Aggressive Tweaks"
+        Write-Host " 3. Restore Defaults"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $n = Read-Host "Select option"
+
+        switch ($n) {
+            '1' { Action-NetworkTweaksBasic }
+            '2' { Action-NetworkTweaksAggressive }
+            '3' { Action-NetworkRestoreDefaults }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-CleanupMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Cleanup" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Safe Cleanup"
-    Write-Host " 2. Aggressive Cleanup"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Cleanup" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Safe Cleanup"
+        Write-Host " 2. Aggressive Cleanup"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $c = Read-Host "Select option"
+
+        switch ($c) {
+            '1' { Action-CleanupSafe }
+            '2' { Action-CleanupAggressive }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-PowerPlanMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Power Plan" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Enable Ultimate Performance Plan"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Power Plan" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Enable Ultimate Performance"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $p = Read-Host "Select option"
+
+        switch ($p) {
+            '1' { Action-UltimatePlan }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-RestoreMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Restore Point" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Create Restore Point"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Restore Point" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Create Restore Point"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $rp = Read-Host "Select option"
+
+        switch ($rp) {
+            '1' { Action-CreateRestorePoint }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 function Show-StatusMenu {
-    Clear-Host
-    Show-Separator
-    Write-Host "   Status Summary" -ForegroundColor Yellow
-    Show-Separator
-    Write-Host " 1. Show Status Summary"
-    Write-Host " 0. Back"
-    Show-Separator
+    while ($true) {
+        Clear-Host
+        Show-Separator
+        Write-Host "   Status Summary" -ForegroundColor Yellow
+        Show-Separator
+        Write-Host " 1. Show Status Summary"
+        Write-Host " 0. Back"
+        Show-Separator
+
+        $ss = Read-Host "Select option"
+
+        switch ($ss) {
+            '1' { Action-StatusSummary }
+            '0' { return }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
 }
 
 # ===== Main Loop =====
