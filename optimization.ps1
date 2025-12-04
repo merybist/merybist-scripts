@@ -52,441 +52,23 @@ function Disable-Service {
         try {
             Stop-Service $Name -Force -ErrorAction SilentlyContinue
             Set-Service $Name -StartupType Disabled -ErrorAction SilentlyContinue
-            Write-Log "DISM cleanup failed or requires elevation." "DarkYellow"
-    }
-    try {
-        vssadmin delete shadows /all /quiet | Out-Null
-    } catch {
-        Write-Log "VSS shadows deletion skipped or unsupported." "DarkYellow"
-    }
-    Remove-Item "$env:LOCALAPPDATA\IconCache.db" -Force -ErrorAction SilentlyContinue
-    $fontCache = "$env:windir\ServiceProfiles\LocalService\AppData\Local\FontCache"
-    Remove-Item "$fontCache\*.dat" -Force -ErrorAction SilentlyContinue
-    Write-Log "Aggressive cleanup completed." "Green"
-}
-
-# ===== Power plan & restore point & status =====
-function Action-UltimatePlan {
-    Write-Log "Enabling Ultimate Performance power plan..." "Yellow"
-    $guid = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-    try {
-        powercfg -duplicatescheme $guid 2>$null | Out-Null
-        powercfg -setactive $guid 2>$null       | Out-Null
-        Write-Log "Ultimate Performance plan active." "Green"
-    } catch {
-        Write-Log "Ultimate Performance plan not supported on this edition." "DarkYellow"
-    }
-}
-
-function Action-CreateRestorePoint {
-    Write-Log "Creating system restore point..." "Yellow"
-    try {
-        Checkpoint-Computer -Description "merybist optimization restore point v2" -RestorePointType "Modify_Settings"
-        Write-Log "Restore point created." "Green"
-    } catch {
-        Write-Log "Restore point failed or unsupported: $($_.Exception.Message)" "DarkYellow"
-    }
-}
-
-function Action-StatusSummary {
-    Write-Log "Status summary:" "Cyan"
-    try {
-        $activeGuid = (powercfg /getactivescheme) 2>$null
-        Write-Log ("Active power plan: " + $activeGuid) "Gray"
-    } catch {
-        Write-Log "Cannot query power plan." "DarkYellow"
-    }
-    $checkSvcs = @("SysMain","WSearch","DiagTrack","Fax","WerSvc","RemoteRegistry")
-    foreach ($s in $checkSvcs) {
-        $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
-        if ($svc) {
-            Write-Log ("Service {0}: {1}" -f $s, $svc.Status) "Gray"
-        } else {
-            Write-Log "Service ${s}: not present" "DarkGray"
+            Write-Log "Disabled service: $Name" "Green"
+        } catch {
+            Write-Log "Failed to disable ${Name}: $($_.Exception.Message)" "DarkYellow"
         }
+    } else {
+        Write-Log "Service $Name not found, skipping." "DarkGray"
     }
 }
 
-# ===== Menus =====
-
-function Show-MainMenu {
-    Clear-Host
-    Write-Host "|---------------------------------------------|" -ForegroundColor Cyan
-    Write-Host "|   merybist Optimization Menu v2.0 Enhanced  |" -ForegroundColor Cyan
-    Write-Host "|---------------------------------------------|" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host " 1.  System Information" -ForegroundColor White
-    Write-Host " 2.  Windows Defender | UAC" -ForegroundColor Yellow
-    Write-Host " 3.  Services Optimization" -ForegroundColor Yellow
-    Write-Host " 4.  Background Apps & GameDVR" -ForegroundColor Yellow
-    Write-Host " 5.  Visual Effects" -ForegroundColor Yellow
-    Write-Host " 6.  Registry Tweaks (Basic)" -ForegroundColor Yellow
-    Write-Host " 7.  Advanced Registry Tweaks" -ForegroundColor Magenta
-    Write-Host " 8.  Network Tweaks" -ForegroundColor Yellow
-    Write-Host " 9.  Cleanup" -ForegroundColor Yellow
-    Write-Host " 10. Power Plan" -ForegroundColor Yellow
-    Write-Host " 11. Restore Point" -ForegroundColor Yellow
-    Write-Host " 12. Status Summary" -ForegroundColor Yellow
-    Write-Host " 0.  Exit" -ForegroundColor Red
-    Write-Host ""
-}
-
-function Show-SystemInfoMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "System Information" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host " 1. Show System Info"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $si = Read-Host "Select option"
-
-        switch ($si) {
-            '1' { Action-ShowSystemInfo }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-DefenderMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Windows Defender | SmartScreen | UAC" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Disable Windows Defender"
-        Write-Host " 2. Enable Windows Defender"
-        Write-Host " 3. Disable SmartScreen"
-        Write-Host " 4. Enable SmartScreen"
-        Write-Host " 5. Disable UAC"
-        Write-Host " 6. Enable UAC"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $d = Read-Host "Select option"
-
-        switch ($d) {
-            '1' { Action-DisableDefender }
-            '2' { Action-EnableDefender }
-            '3' { Action-DisableSmartScreen }
-            '4' { Action-EnableSmartScreen }
-            '5' { Action-DisableUAC }
-            '6' { Action-EnableUAC }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-ServicesMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Services Optimization" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Disable Basic Services"
-        Write-Host " 2. Disable Conditional Services"
-        Write-Host " 3. Disable Aggressive Services"
-        Write-Host " 4. Enable All Services"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $s = Read-Host "Select option"
-
-        switch ($s) {
-            '1' { Action-DisableServicesBasic }
-            '2' { Action-DisableServicesConditional }
-            '3' { Action-DisableServicesAggressive }
-            '4' { Action-EnableAllServices }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-BackgroundMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Background Apps & GameDVR" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Disable Background Apps"
-        Write-Host " 2. Enable Background Apps"
-        Write-Host " 3. Disable GameDVR"
-        Write-Host " 4. Enable GameDVR"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $b = Read-Host "Select option"
-
-        switch ($b) {
-            '1' { Action-DisableBackgroundApps }
-            '2' { Action-EnableBackgroundApps }
-            '3' { Action-DisableGameDVR }
-            '4' { Action-EnableGameDVR }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-VisualMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Visual Effects" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Performance Mode"
-        Write-Host " 2. Default Mode"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $v = Read-Host "Select option"
-
-        switch ($v) {
-            '1' { Action-VisualEffectsPerformance }
-            '2' { Action-VisualEffectsDefault }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-RegistryMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Registry Tweaks (Basic)" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Apply Performance Tweaks"
-        Write-Host " 2. Restore Defaults"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $r = Read-Host "Select option"
-
-        switch ($r) {
-            '1' { Action-RegistryPerformanceTweaks }
-            '2' { Action-RegistryRestoreDefaults }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-AdvancedTweaksMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "|-------------------------------------|" -ForegroundColor Magenta
-        Write-Host "|   Advanced Registry Tweaks (NEW!)   |" -ForegroundColor Magenta
-        Write-Host "--------------------------------------|" -ForegroundColor Magenta
-        Write-Host ""
-        Write-Host " 1. CPU Optimization Tweaks" -ForegroundColor Cyan
-        Write-Host " 2. Memory Optimization Tweaks" -ForegroundColor Cyan
-        Write-Host " 3. Gaming Optimization Tweaks" -ForegroundColor Cyan
-        Write-Host " 4. Network Optimization Tweaks" -ForegroundColor Cyan
-        Write-Host " 5. UI/Responsiveness Tweaks" -ForegroundColor Cyan
-        Write-Host " 6. Disk/Storage Tweaks" -ForegroundColor Cyan
-        Write-Host " 7. APPLY ALL ADVANCED TWEAKS" -ForegroundColor Green
-        Write-Host " 8. Restore All Advanced Defaults" -ForegroundColor Red
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $at = Read-Host "Select option"
-
-        switch ($at) {
-            '1' { Action-AdvancedCPUTweaks }
-            '2' { Action-AdvancedMemoryTweaks }
-            '3' { Action-AdvancedGamingTweaks }
-            '4' { Action-AdvancedNetworkTweaks }
-            '5' { Action-AdvancedUITweaks }
-            '6' { Action-AdvancedDiskTweaks }
-            '7' {
-                Write-Log "Applying ALL advanced tweaks..." "Magenta"
-                Action-AdvancedCPUTweaks
-                Action-AdvancedMemoryTweaks
-                Action-AdvancedGamingTweaks
-                Action-AdvancedNetworkTweaks
-                Action-AdvancedUITweaks
-                Action-AdvancedDiskTweaks
-                Write-Log "All advanced tweaks applied!" "Green"
-            }
-            '8' { Action-RestoreAdvancedTweaks }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-NetworkMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Network Tweaks" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Basic Tweaks"
-        Write-Host " 2. Aggressive Tweaks"
-        Write-Host " 3. Restore Defaults"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $n = Read-Host "Select option"
-
-        switch ($n) {
-            '1' { Action-NetworkTweaksBasic }
-            '2' { Action-NetworkTweaksAggressive }
-            '3' { Action-NetworkRestoreDefaults }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-CleanupMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Cleanup" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Safe Cleanup"
-        Write-Host " 2. Aggressive Cleanup"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $c = Read-Host "Select option"
-
-        switch ($c) {
-            '1' { Action-CleanupSafe }
-            '2' { Action-CleanupAggressive }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-PowerPlanMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Power Plan" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Enable Ultimate Performance"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $p = Read-Host "Select option"
-
-        switch ($p) {
-            '1' { Action-UltimatePlan }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-RestoreMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Restore Point" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Create Restore Point"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $rp = Read-Host "Select option"
-
-        switch ($rp) {
-            '1' { Action-CreateRestorePoint }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-function Show-StatusMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host "Status Summary" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " 1. Show Status Summary"
-        Write-Host " 0. Back"
-        Write-Host ""
-
-        $ss = Read-Host "Select option"
-
-        switch ($ss) {
-            '1' { Action-StatusSummary }
-            '0' { return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
-        }
-
-        Write-Host "`nPress any key to return..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
-}
-
-# ===== Main Loop =====
-do {
-    Show-MainMenu
-    $main = Read-Host "Select option"
-
-    switch ($main) {
-        '1' { Show-SystemInfoMenu }
-        '2' { Show-DefenderMenu }
-        '3' { Show-ServicesMenu }
-        '4' { Show-BackgroundMenu }
-        '5' { Show-VisualMenu }
-        '6' { Show-RegistryMenu }
-        '7' { Show-AdvancedTweaksMenu }
-        '8' { Show-NetworkMenu }
-        '9' { Show-CleanupMenu }
-        '10' { Show-PowerPlanMenu }
-        '11' { Show-RestoreMenu }
-        '12' { Show-StatusMenu }
-        '0' {
-            Write-Log "Exiting optimization menu. Thank you for using merybist optimizer v2.0!" "Cyan"
-            break
-        }
-        default {
-            Write-Host "Invalid selection." -ForegroundColor Yellow
-            Write-Host "`nPress any key to return..."
-            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-        }
-    }
-
-} while ($true)
-
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "    Thanks for using merybist optimizer v2.0!" -ForegroundColor Green
-Write-Host "═══════════════════════════════════════════════" -ForegroundColor Cyan-Log "Disabled service: $Name" "Green"
+function Disable-ServiceSafe {
+    param([string]$Name)
+    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($svc) {
+        try {
+            Stop-Service $Name -Force -ErrorAction SilentlyContinue
+            Set-Service $Name -StartupType Disabled -ErrorAction SilentlyContinue
+            Write-Log "Disabled service: $Name" "Green"
         } catch {
             Write-Log "Failed to disable ${Name}: $($_.Exception.Message)" "DarkYellow"
         }
@@ -925,23 +507,438 @@ function Action-CleanupAggressive {
     try {
         Dism.exe /Online /Cleanup-Image /StartComponentCleanup /ResetBase | Out-Null
     } catch {
-        Write
+        Write-Log "DISM cleanup failed or requires elevation." "DarkYellow"
+    }
+    try {
+        vssadmin delete shadows /all /quiet | Out-Null
+    } catch {
+        Write-Log "VSS shadows deletion skipped or unsupported." "DarkYellow"
+    }
+    Remove-Item "$env:LOCALAPPDATA\IconCache.db" -Force -ErrorAction SilentlyContinue
+    $fontCache = "$env:windir\ServiceProfiles\LocalService\AppData\Local\FontCache"
+    Remove-Item "$fontCache\*.dat" -Force -ErrorAction SilentlyContinue
+    Write-Log "Aggressive cleanup completed." "Green"
+}
 
-
-function Disable-ServiceSafe {
-    param([string]$Name)
-
-    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
-    if ($svc) {
-        try {
-            Stop-Service $Name -Force -ErrorAction SilentlyContinue
-            Set-Service $Name -StartupType Disabled -ErrorAction SilentlyContinue
-            Write-Log "Disabled service: $Name" "Green"
-        } catch {
-            Write-Log "Failed to disable ${Name}: $($_.Exception.Message)" "DarkYellow"
-        }
-    } else {
-        Write-Log "Service $Name not found, skipping." "DarkGray"
+# ===== Power plan & restore point & status =====
+function Action-UltimatePlan {
+    Write-Log "Enabling Ultimate Performance power plan..." "Yellow"
+    $guid = "e9a42b02-d5df-448d-aa00-03f14749eb61"
+    try {
+        powercfg -duplicatescheme $guid 2>$null | Out-Null
+        powercfg -setactive $guid 2>$null       | Out-Null
+        Write-Log "Ultimate Performance plan active." "Green"
+    } catch {
+        Write-Log "Ultimate Performance plan not supported on this edition." "DarkYellow"
     }
 }
 
+function Action-CreateRestorePoint {
+    Write-Log "Creating system restore point..." "Yellow"
+    try {
+        Checkpoint-Computer -Description "merybist optimization restore point v2" -RestorePointType "Modify_Settings"
+        Write-Log "Restore point created." "Green"
+    } catch {
+        Write-Log "Restore point failed or unsupported: $($_.Exception.Message)" "DarkYellow"
+    }
+}
+
+function Action-StatusSummary {
+    Write-Log "Status summary:" "Cyan"
+    try {
+        $activeGuid = (powercfg /getactivescheme) 2>$null
+        Write-Log ("Active power plan: " + $activeGuid) "Gray"
+    } catch {
+        Write-Log "Cannot query power plan." "DarkYellow"
+    }
+    $checkSvcs = @("SysMain","WSearch","DiagTrack","Fax","WerSvc","RemoteRegistry")
+    foreach ($s in $checkSvcs) {
+        $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
+        if ($svc) {
+            Write-Log ("Service {0}: {1}" -f $s, $svc.Status) "Gray"
+        } else {
+            Write-Log "Service ${s}: not present" "DarkGray"
+        }
+    }
+}
+
+# ===== Menus =====
+
+function Show-MainMenu {
+    Clear-Host
+    Write-Host "|---------------------------------------------|" -ForegroundColor Cyan
+    Write-Host "|   merybist Optimization Menu v2.0 Enhanced  |" -ForegroundColor Cyan
+    Write-Host "|---------------------------------------------|" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host " 1.  System Information" -ForegroundColor White
+    Write-Host " 2.  Windows Defender | UAC" -ForegroundColor Yellow
+    Write-Host " 3.  Services Optimization" -ForegroundColor Yellow
+    Write-Host " 4.  Background Apps & GameDVR" -ForegroundColor Yellow
+    Write-Host " 5.  Visual Effects" -ForegroundColor Yellow
+    Write-Host " 6.  Registry Tweaks (Basic)" -ForegroundColor Yellow
+    Write-Host " 7.  Advanced Registry Tweaks" -ForegroundColor Magenta
+    Write-Host " 8.  Network Tweaks" -ForegroundColor Yellow
+    Write-Host " 9.  Cleanup" -ForegroundColor Yellow
+    Write-Host " 10. Power Plan" -ForegroundColor Yellow
+    Write-Host " 11. Restore Point" -ForegroundColor Yellow
+    Write-Host " 12. Status Summary" -ForegroundColor Yellow
+    Write-Host " 0.  Exit" -ForegroundColor Red
+    Write-Host ""
+}
+
+function Show-SystemInfoMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "System Information" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host " 1. Show System Info"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $si = Read-Host "Select option"
+
+        switch ($si) {
+            '1' { Action-ShowSystemInfo }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-DefenderMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Windows Defender | SmartScreen | UAC" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Disable Windows Defender"
+        Write-Host " 2. Enable Windows Defender"
+        Write-Host " 3. Disable SmartScreen"
+        Write-Host " 4. Enable SmartScreen"
+        Write-Host " 5. Disable UAC"
+        Write-Host " 6. Enable UAC"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $d = Read-Host "Select option"
+
+        switch ($d) {
+            '1' { Action-DisableDefender }
+            '2' { Action-EnableDefender }
+            '3' { Action-DisableSmartScreen }
+            '4' { Action-EnableSmartScreen }
+            '5' { Action-DisableUAC }
+            '6' { Action-EnableUAC }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-ServicesMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Services Optimization" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Disable Basic Services"
+        Write-Host " 2. Disable Conditional Services"
+        Write-Host " 3. Disable Aggressive Services"
+        Write-Host " 4. Enable All Services"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $s = Read-Host "Select option"
+
+        switch ($s) {
+            '1' { Action-DisableServicesBasic }
+            '2' { Action-DisableServicesConditional }
+            '3' { Action-DisableServicesAggressive }
+            '4' { Action-EnableAllServices }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-BackgroundMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Background Apps & GameDVR" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Disable Background Apps"
+        Write-Host " 2. Enable Background Apps"
+        Write-Host " 3. Disable GameDVR"
+        Write-Host " 4. Enable GameDVR"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $b = Read-Host "Select option"
+
+        switch ($b) {
+            '1' { Action-DisableBackgroundApps }
+            '2' { Action-EnableBackgroundApps }
+            '3' { Action-DisableGameDVR }
+            '4' { Action-EnableGameDVR }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-VisualMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Visual Effects" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Performance Mode"
+        Write-Host " 2. Default Mode"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $v = Read-Host "Select option"
+
+        switch ($v) {
+            '1' { Action-VisualEffectsPerformance }
+            '2' { Action-VisualEffectsDefault }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-RegistryMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Registry Tweaks (Basic)" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Apply Performance Tweaks"
+        Write-Host " 2. Restore Defaults"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $r = Read-Host "Select option"
+
+        switch ($r) {
+            '1' { Action-RegistryPerformanceTweaks }
+            '2' { Action-RegistryRestoreDefaults }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-AdvancedTweaksMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "|-------------------------------------|" -ForegroundColor Magenta
+        Write-Host "|   Advanced Registry Tweaks (NEW!)   |" -ForegroundColor Magenta
+        Write-Host "--------------------------------------|" -ForegroundColor Magenta
+        Write-Host ""
+        Write-Host " 1. CPU Optimization Tweaks" -ForegroundColor Cyan
+        Write-Host " 2. Memory Optimization Tweaks" -ForegroundColor Cyan
+        Write-Host " 3. Gaming Optimization Tweaks" -ForegroundColor Cyan
+        Write-Host " 4. Network Optimization Tweaks" -ForegroundColor Cyan
+        Write-Host " 5. UI/Responsiveness Tweaks" -ForegroundColor Cyan
+        Write-Host " 6. Disk/Storage Tweaks" -ForegroundColor Cyan
+        Write-Host " 7. APPLY ALL ADVANCED TWEAKS" -ForegroundColor Green
+        Write-Host " 8. Restore All Advanced Defaults" -ForegroundColor Red
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $at = Read-Host "Select option"
+
+        switch ($at) {
+            '1' { Action-AdvancedCPUTweaks }
+            '2' { Action-AdvancedMemoryTweaks }
+            '3' { Action-AdvancedGamingTweaks }
+            '4' { Action-AdvancedNetworkTweaks }
+            '5' { Action-AdvancedUITweaks }
+            '6' { Action-AdvancedDiskTweaks }
+            '7' {
+                Write-Log "Applying ALL advanced tweaks..." "Magenta"
+                Action-AdvancedCPUTweaks
+                Action-AdvancedMemoryTweaks
+                Action-AdvancedGamingTweaks
+                Action-AdvancedNetworkTweaks
+                Action-AdvancedUITweaks
+                Action-AdvancedDiskTweaks
+                Write-Log "All advanced tweaks applied!" "Green"
+            }
+            '8' { Action-RestoreAdvancedTweaks }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-NetworkMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Network Tweaks" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Basic Tweaks"
+        Write-Host " 2. Aggressive Tweaks"
+        Write-Host " 3. Restore Defaults"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $n = Read-Host "Select option"
+
+        switch ($n) {
+            '1' { Action-NetworkTweaksBasic }
+            '2' { Action-NetworkTweaksAggressive }
+            '3' { Action-NetworkRestoreDefaults }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-CleanupMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Cleanup" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Safe Cleanup"
+        Write-Host " 2. Aggressive Cleanup"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $c = Read-Host "Select option"
+
+        switch ($c) {
+            '1' { Action-CleanupSafe }
+            '2' { Action-CleanupAggressive }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-PowerPlanMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Power Plan" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Enable Ultimate Performance"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $p = Read-Host "Select option"
+
+        switch ($p) {
+            '1' { Action-UltimatePlan }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-RestoreMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Restore Point" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Create Restore Point"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $rp = Read-Host "Select option"
+
+        switch ($rp) {
+            '1' { Action-CreateRestorePoint }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+function Show-StatusMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Status Summary" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Show Status Summary"
+        Write-Host " 0. Back"
+        Write-Host ""
+
+        $ss = Read-Host "Select option"
+
+        switch ($ss) {
+            '1' { Action-StatusSummary }
+            '0' { return }
+            default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+        }
+
+        Write-Host "`nPress any key to return..."
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    }
+}
+
+# ===== Main Loop =====
+do {
+    Show-MainMenu
+    $main = Read-Host "Select option"
+
+    switch ($main) {
+        '1' { Show-SystemInfoMenu }
+        '2' { Show-DefenderMenu }
+        '3' { Show-ServicesMenu }
+        '4' { Show-BackgroundMenu }
+        '5' { Show-VisualMenu }
+        '6' { Show-RegistryMenu }
+        '7' { Show-AdvancedTweaksMenu }
+        '8' { Show-NetworkMenu }
+        '9' { Show-CleanupMenu }
+        '10' { Show-PowerPlanMenu }
+        '11' { Show-RestoreMenu }
+        '12' { Show-StatusMenu }
+        '0' {
+            Write-Log "Exiting optimization menu. Thank you for using merybist optimizer v2.0!" "Cyan"
+            break
+        }
+        default {
+            Write-Host "Invalid selection." -ForegroundColor Yellow
+            Write-Host "`nPress any key to return..."
+            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        }
+    }
+
+} while ($true)
+
+Write-Host ""
+Write-Host "═══════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "    Thanks for using merybist optimizer v2.0!" -ForegroundColor Green
+Write-Host "═══════════════════════════════════════════════" -ForegroundColor Cyan
