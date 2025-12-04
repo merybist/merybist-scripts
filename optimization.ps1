@@ -410,9 +410,8 @@ function Action-StatusSummary {
 }
 
 # ===== Menus (Style C) =====
-function Show-Separator {
-    Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
-}
+function Show-Separator { }
+
 
 function Show-MainMenu {
     Clear-Host
