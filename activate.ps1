@@ -33,11 +33,11 @@ function Write-Color {
 function Show-MainMenu {
     Clear-Host
     Write-Color "`n" "Cyan"
-    Write-Color "╔══════════════════════════════════════════════════════════╗" "Cyan"
-    Write-Color "║      WINDOWS & OFFICE ACTIVATION TOOLKIT v3.0            ║" "Cyan"
-    Write-Color "║      Cybersecurity Course - Section 4, Lesson 26         ║" "Cyan"
-    Write-Color "║      For Educational Purposes Only                       ║" "Yellow"
-    Write-Color "╚══════════════════════════════════════════════════════════╝" "Cyan"
+    Write-Color "------------------------------------------------------------" "Cyan"
+    Write-Color "|      WINDOWS & OFFICE ACTIVATION TOOLKIT v3.0            |" "Cyan"
+    Write-Color "|      Universal instrument for you <3                     |" "Cyan"
+    Write-Color "|      by merybist                                         |" "Yellow"
+    Write-Color "------------------------------------------------------------" "Cyan"
     Write-Color "`n"
     
     # Show current status
@@ -45,34 +45,34 @@ function Show-MainMenu {
     Check-ActivationStatus -DisplayOnly $true
     
     Write-Color "`n" "Cyan"
-    Write-Color "╔══════════════════════════════════════════════════════════╗" "Magenta"
-    Write-Color "║                      MAIN MENU                           ║" "Magenta"
-    Write-Color "╠══════════════════════════════════════════════════════════╣" "Magenta"
-    Write-Color "║  1. 📊 Check Activation Status                           ║" "White"
-    Write-Color "║  2. ⚙️  Windows Activation Methods                        ║" "White"
-    Write-Color "║  3. 📎 Office Activation Methods                         ║" "White"
-    Write-Color "║  4. 💾 Backup Activation                                 ║" "White"
-    Write-Color "║  5. 🔄 Restore Activation                                ║" "White"
-    Write-Color "║  6. 🛠️  Repair Components                                 ║" "White"
-    Write-Color "║  7. 🚀 Auto-Activate (All Methods)                       ║" "Yellow"
-    Write-Color "║  8. 📋 View Logs                                         ║" "White"
-    Write-Color "║  9. ❌ Exit                                              ║" "White"
-    Write-Color "╚══════════════════════════════════════════════════════════╝" "Magenta"
+    Write-Color "------------------------------------------------------------" "Magenta"
+    Write-Color "|                      MAIN MENU                           |" "Magenta"
+    Write-Color "|----------------------------------------------------------|" "Magenta"
+    Write-Color "|  1. Check Activation Status                           |" "White"
+    Write-Color "|  2. Windows Activation Methods                        |" "White"
+    Write-Color "|  3. Office Activation Methods                         |" "White"
+    Write-Color "|  4. Backup Activation                                 |" "White"
+    Write-Color "|  5. Restore Activation                                |" "White"
+    Write-Color "|  6. Repair Components                                 |" "White"
+    Write-Color "|  7. Auto-Activate (All Methods)                       |" "Yellow"
+    Write-Color "|  8. View Logs                                         |" "White"
+    Write-Color "|  9. Exit                                              |" "White"
+    Write-Color "------------------------------------------------------------" "Magenta"
     Write-Color "`n"
 }
 
 function Show-WindowsMethodsMenu {
     Clear-Host
     Write-Color "`n" "Cyan"
-    Write-Color "╔══════════════════════════════════════════════════════════╗" "Magenta"
-    Write-Color "║              WINDOWS ACTIVATION METHODS                  ║" "Magenta"
-    Write-Color "╠══════════════════════════════════════════════════════════╣" "Magenta"
-    Write-Color "║  1. 🌐 KMS Activation (Online Servers)                   ║" "White"
-    Write-Color "║  2. 🔑 HWID (Digital License)                            ║" "White"
-    Write-Color "║  3. 🏗️  TSForge (Local KMS)                              ║" "White"
-    Write-Color "║  4. 🛡️  MAS Method                                       ║" "White"
-    Write-Color "║  5. 🔙 Back to Main Menu                                 ║" "White"
-    Write-Color "╚══════════════════════════════════════════════════════════╝" "Magenta"
+    Write-Color "------------------------------------------------------------" "Magenta"
+    Write-Color "|              WINDOWS ACTIVATION METHODS                  |" "Magenta"
+    Write-Color "|----------------------------------------------------------|" "Magenta"
+    Write-Color "|  1. KMS Activation (Online Servers)                   |" "White"
+    Write-Color "|  2. HWID (Digital License)                            |" "White"
+    Write-Color "|  3. TSForge (Local KMS)                              |" "White"
+    Write-Color "|  4. MAS Method                                       |" "White"
+    Write-Color "|  5. Back to Main Menu                                 |" "White"
+    Write-Color "------------------------------------------------------------" "Magenta"
     Write-Color "`n"
     
     $choice = Read-Host "Select method (1-5)"
@@ -90,14 +90,14 @@ function Show-WindowsMethodsMenu {
 function Show-OfficeMethodsMenu {
     Clear-Host
     Write-Color "`n" "Cyan"
-    Write-Color "╔══════════════════════════════════════════════════════════╗" "Magenta"
-    Write-Color "║               OFFICE ACTIVATION METHODS                  ║" "Magenta"
-    Write-Color "╠══════════════════════════════════════════════════════════╣" "Magenta"
-    Write-Color "║  1. 🌐 KMS Office Activation                             ║" "White"
-    Write-Color "║  2. 📎 Ohook Method                                      ║" "White"
-    Write-Color "║  3. 🔑 Manual Key Activation                             ║" "White"
-    Write-Color "║  4. 🔙 Back to Main Menu                                 ║" "White"
-    Write-Color "╚══════════════════════════════════════════════════════════╝" "Magenta"
+    Write-Color "------------------------------------------------------------" "Magenta"
+    Write-Color "|               OFFICE ACTIVATION METHODS                  |" "Magenta"
+    Write-Color "|----------------------------------------------------------|" "Magenta"
+    Write-Color "|  1. KMS Office Activation                             |" "White"
+    Write-Color "|  2. Ohook Method                                      |" "White"
+    Write-Color "|  3. Manual Key Activation                             |" "White"
+    Write-Color "|  4. Back to Main Menu                                 |" "White"
+    Write-Color "------------------------------------------------------------" "Magenta"
     Write-Color "`n"
     
     $choice = Read-Host "Select method (1-4)"
@@ -643,7 +643,7 @@ function Activate-Office-Manual {
 
 #region Auto-Activation
 function Auto-Activate {
-    Write-Color "`n🚀 Starting Auto-Activation Sequence..." "Cyan"
+    Write-Color "`n Starting Auto-Activation Sequence..." "Cyan"
     Write-Color "This will try all activation methods in order" "White"
     Write-Color "`n"
     
@@ -704,16 +704,16 @@ function Auto-Activate {
     $status = Check-ActivationStatus -DisplayOnly $true
     
     if ($status.Windows -eq "ACTIVATED" -and $status.Office -eq "ACTIVATED") {
-        Write-Color "🎉 SUCCESS: Both Windows and Office activated!" "Green"
+        Write-Color " SUCCESS: Both Windows and Office activated!" "Green"
     }
     elseif ($status.Windows -eq "ACTIVATED") {
-        Write-Color "✓ Windows activated, Office may need manual activation" "Yellow"
+        Write-Color " Windows activated, Office may need manual activation" "Yellow"
     }
     elseif ($status.Office -eq "ACTIVATED") {
-        Write-Color "✓ Office activated, Windows may need manual activation" "Yellow"
+        Write-Color " Office activated, Windows may need manual activation" "Yellow"
     }
     else {
-        Write-Color "❌ Activation failed. Try manual methods or repair." "Red"
+        Write-Color " Activation failed. Try manual methods or repair." "Red"
     }
 }
 #endregion
@@ -821,11 +821,11 @@ try {
     # Clear screen and show welcome
     Clear-Host
     Write-Color "`n" "Cyan"
-    Write-Color "╔══════════════════════════════════════════════════════════╗" "Cyan"
-    Write-Color "║      WINDOWS & OFFICE ACTIVATION TOOLKIT                ║" "Cyan"
-    Write-Color "║      Version 3.0                                        ║" "Cyan"
-    Write-Color "║      Loading...                                         ║" "Cyan"
-    Write-Color "╚══════════════════════════════════════════════════════════╝" "Cyan"
+    Write-Color "------------------------------------------------------------" "Cyan"
+    Write-Color "|      WINDOWS & OFFICE ACTIVATION TOOLKIT                |" "Cyan"
+    Write-Color "|      Version 3.0                                        |" "Cyan"
+    Write-Color "|      Loading...                                         |" "Cyan"
+    Write-Color "------------------------------------------------------------" "Cyan"
     Write-Color "`n"
     
     Start-Sleep -Seconds 1
