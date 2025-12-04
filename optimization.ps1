@@ -45,7 +45,7 @@ function Safe-SetReg {
     }
 }
 
-function Disable-ServiceSafe {
+function Disable-Service {
     param([string]$Name)
     $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
     if ($svc) {
@@ -111,9 +111,9 @@ function Action-StatusSummary {
 
 function Show-MainMenu {
     Clear-Host
-    Write-Host "╔═══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║   merybist Optimization Menu v2.0 Enhanced  ║" -ForegroundColor Cyan
-    Write-Host "╚═══════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "|---------------------------------------------|" -ForegroundColor Cyan
+    Write-Host "|   merybist Optimization Menu v2.0 Enhanced  |" -ForegroundColor Cyan
+    Write-Host "|---------------------------------------------|" -ForegroundColor Cyan
     Write-Host ""
     Write-Host " 1.  System Information" -ForegroundColor White
     Write-Host " 2.  Windows Defender | UAC" -ForegroundColor Yellow
@@ -292,9 +292,9 @@ function Show-RegistryMenu {
 function Show-AdvancedTweaksMenu {
     while ($true) {
         Clear-Host
-        Write-Host "╔═══════════════════════════════════════╗" -ForegroundColor Magenta
-        Write-Host "║   Advanced Registry Tweaks (NEW!)   ║" -ForegroundColor Magenta
-        Write-Host "╚═══════════════════════════════════════╝" -ForegroundColor Magenta
+        Write-Host "|-------------------------------------|" -ForegroundColor Magenta
+        Write-Host "|   Advanced Registry Tweaks (NEW!)   |" -ForegroundColor Magenta
+        Write-Host "--------------------------------------|" -ForegroundColor Magenta
         Write-Host ""
         Write-Host " 1. CPU Optimization Tweaks" -ForegroundColor Cyan
         Write-Host " 2. Memory Optimization Tweaks" -ForegroundColor Cyan
@@ -926,3 +926,22 @@ function Action-CleanupAggressive {
         Dism.exe /Online /Cleanup-Image /StartComponentCleanup /ResetBase | Out-Null
     } catch {
         Write
+
+
+function Disable-ServiceSafe {
+    param([string]$Name)
+
+    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($svc) {
+        try {
+            Stop-Service $Name -Force -ErrorAction SilentlyContinue
+            Set-Service $Name -StartupType Disabled -ErrorAction SilentlyContinue
+            Write-Log "Disabled service: $Name" "Green"
+        } catch {
+            Write-Log "Failed to disable ${Name}: $($_.Exception.Message)" "DarkYellow"
+        }
+    } else {
+        Write-Log "Service $Name not found, skipping." "DarkGray"
+    }
+}
+
