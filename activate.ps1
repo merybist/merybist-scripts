@@ -736,8 +736,6 @@ function Show-ActivationMethodsMenu {
         "6" { return }
         default { Write-Host "Invalid selection!" -ForegroundColor $global:ColorError }
     }
-    
-    Pause-AndReturn
 }
 
 function Show-BackupMenu {
@@ -788,8 +786,6 @@ function Show-BackupMenu {
         }
         "5" { return }
     }
-    
-    Pause-AndReturn
 }
 
 function Repair-ActivationComponents {
@@ -805,7 +801,9 @@ function Repair-ActivationComponents {
                 Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
                 Write-Host "Stopped service: $service" -ForegroundColor Gray
             }
-            catch {}
+            catch {
+                Write-Host "Failed to stop service: $service" -ForegroundColor $global:ColorWarning
+            }
         }
         
         # Clear cache
@@ -855,4 +853,265 @@ function Repair-ActivationComponents {
         # Start services
         foreach ($service in $services) {
             try {
-                Start-Service -Name $service -ErrorAction Silently
+                Start-Service -Name $service -ErrorAction SilentlyContinue
+                Write-Host "Started service: $service" -ForegroundColor Gray
+            }
+            catch {
+                Write-Host "Failed to start service: $service" -ForegroundColor $global:ColorWarning
+            }
+        }
+        
+        Write-Log "Activation components repaired successfully" "SUCCESS"
+        return $true
+    }
+    catch {
+        Write-Log "Repair failed: $_" "ERROR"
+        return $false
+    }
+}
+
+function View-Logs {
+    Clear-Host
+    Write-Host "`n" -NoNewline
+    Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor $global:ColorMenu
+    Write-Host "║                    LOG VIEWER                           ║" -ForegroundColor $global:ColorMenu
+    Write-Host "╠══════════════════════════════════════════════════════════╣" -ForegroundColor $global:ColorMenu
+    Write-Host "║  1. 📄 View Current Session Log                         ║" -ForegroundColor White
+    Write-Host "║  2. 📁 Open Log Directory                               ║" -ForegroundColor White
+    Write-Host "║  3. 🧹 Clear All Logs                                   ║" -ForegroundColor $global:ColorWarning
+    Write-Host "║  4. 🔙 Back to Main Menu                                ║" -ForegroundColor White
+    Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor $global:ColorMenu
+    Write-Host "`n"
+    
+    $choice = Read-Host "Select option (1-4)"
+    
+    switch ($choice) {
+        "1" {
+            if (Test-Path $global:LogFile) {
+                Get-Content $global:LogFile | Out-Host -Paging
+            }
+            else {
+                Write-Host "No log file found!" -ForegroundColor $global:ColorWarning
+            }
+        }
+        "2" {
+            $logDir = Split-Path $global:LogFile -Parent
+            if (Test-Path $logDir) {
+                explorer.exe $logDir
+            }
+        }
+        "3" {
+            $confirm = Read-Host "Are you sure you want to clear all logs? (yes/no)"
+            if ($confirm -eq "yes") {
+                $logDir = Split-Path $global:LogFile -Parent
+                if (Test-Path $logDir) {
+                    Remove-Item -Path "$logDir\*" -Recurse -Force
+                    Write-Host "All logs cleared!" -ForegroundColor $global:ColorSuccess
+                }
+            }
+        }
+        "4" { return }
+    }
+}
+
+function Auto-Activate {
+    Write-Log "Starting Auto-Activation (trying all methods)..." "INFO"
+    Write-Host "`n🚀 Starting Auto-Activation Sequence..." -ForegroundColor $global:ColorWarning
+    Write-Host "This will try all activation methods in sequence" -ForegroundColor White
+    Write-Host "`n"
+    
+    # Create backup first
+    Write-Host "Step 1: Creating backup..." -ForegroundColor $global:ColorInfo
+    $backupResult = Backup-Activation
+    
+    if (-not $backupResult) {
+        Write-Host "Backup failed! Continue anyway? (yes/no)" -ForegroundColor $global:ColorWarning
+        $continue = Read-Host
+        if ($continue -ne "yes") {
+            return
+        }
+    }
+    
+    # List of methods to try
+    $methods = @(
+        @{Name = "KMS Activation"; Function = { Activate-KMS } },
+        @{Name = "HWID Activation"; Function = { Activate-HWID } },
+        @{Name = "MAS Method"; Function = { Activate-MAS } },
+        @{Name = "TSForge"; Function = { Activate-TSForge } },
+        @{Name = "Ohook"; Function = { Activate-Ohook } }
+    )
+    
+    $success = $false
+    $methodNumber = 1
+    
+    foreach ($method in $methods) {
+        Write-Host "`nStep $($methodNumber): Trying $($method.Name)..." -ForegroundColor $global:ColorInfo
+        
+        try {
+            $result = & $method.Function
+            
+            if ($result) {
+                Write-Host "✓ $($method.Name) SUCCESSFUL!" -ForegroundColor $global:ColorSuccess
+                $success = $true
+                
+                # Check if everything is activated
+                $windowsStatus = Test-WindowsActivationStatus
+                $officeStatus = Test-OfficeActivationStatus
+                
+                if ($windowsStatus -and $officeStatus) {
+                    Write-Host "`n🎉 COMPLETE SUCCESS! Both Windows and Office are activated!" -ForegroundColor $global:ColorSuccess
+                    break
+                }
+                elseif ($windowsStatus) {
+                    Write-Host "✓ Windows activated, continuing with Office methods..." -ForegroundColor $global:ColorSuccess
+                }
+                elseif ($officeStatus) {
+                    Write-Host "✓ Office activated, continuing with Windows methods..." -ForegroundColor $global:ColorSuccess
+                }
+            }
+            else {
+                Write-Host "✗ $($method.Name) failed" -ForegroundColor $global:ColorWarning
+            }
+        }
+        catch {
+            Write-Host "✗ $($method.Name) error: $_" -ForegroundColor $global:ColorError
+        }
+        
+        $methodNumber++
+        Start-Sleep -Seconds 2
+    }
+    
+    if (-not $success) {
+        Write-Host "`n❌ All methods failed! Trying repair..." -ForegroundColor $global:ColorError
+        Repair-ActivationComponents
+        
+        # Try KMS one more time
+        Write-Host "`nTrying KMS one more time after repair..." -ForegroundColor $global:ColorInfo
+        Activate-KMS
+    }
+    
+    # Final status
+    Write-Host "`n" + "="*50 -ForegroundColor $global:ColorInfo
+    Show-ActivationStatus
+    Write-Host "="*50 -ForegroundColor $global:ColorInfo
+}
+
+function Pause-AndReturn {
+    Write-Host "`nPress any key to continue..." -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+#endregion
+
+#region Main Execution
+function Main {
+    # Check admin rights
+    if (-not (Test-Administrator)) {
+        Write-Host "This script requires Administrator privileges!" -ForegroundColor $global:ColorError
+        Write-Host "Please run PowerShell as Administrator and execute the script again." -ForegroundColor $global:ColorWarning
+        exit 1
+    }
+    
+    # Initialize
+    Initialize-Logging
+    
+    # Welcome
+    if (-not $Silent) {
+        Write-Host "`n" -NoNewline
+        Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor $global:ColorMenu
+        Write-Host "     WINDOWS & OFFICE ACTIVATION TOOLKIT v2.0" -ForegroundColor $global:ColorMenu
+        Write-Host "     Cybersecurity Course - Section 4, Lesson 26" -ForegroundColor $global:ColorMenu
+        Write-Host "     Educational Purposes Only" -ForegroundColor $global:ColorWarning
+        Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor $global:ColorMenu
+        Write-Host "`n"
+    }
+    
+    Write-Log "Script started" "INFO"
+    Write-Log "User: $env:USERNAME" "INFO"
+    Write-Log "Computer: $env:COMPUTERNAME" "INFO"
+    
+    # Auto mode
+    if ($AutoMode) {
+        Write-Log "Running in auto mode" "INFO"
+        Auto-Activate
+        exit 0
+    }
+    
+    # Specific method
+    if (-not [string]::IsNullOrWhiteSpace($Method)) {
+        Write-Log "Running specific method: $Method" "INFO"
+        switch ($Method.ToLower()) {
+            "kms" { Activate-KMS }
+            "hwid" { Activate-HWID }
+            "mas" { Activate-MAS }
+            "tsforge" { Activate-TSForge }
+            "ohook" { Activate-Ohook }
+            default { Write-Host "Unknown method: $Method" -ForegroundColor $global:ColorError }
+        }
+        exit 0
+    }
+    
+    # Interactive menu mode
+    while ($true) {
+        try {
+            Show-MainMenu
+            $choice = Read-Host "Select option (1-8)"
+            
+            switch ($choice) {
+                "1" { 
+                    Show-ActivationStatus
+                    Pause-AndReturn
+                }
+                "2" { 
+                    Show-BackupMenu
+                    Pause-AndReturn
+                }
+                "3" { 
+                    Show-BackupMenu
+                    Pause-AndReturn
+                }
+                "4" { 
+                    Show-ActivationMethodsMenu
+                    Pause-AndReturn
+                }
+                "5" { 
+                    Repair-ActivationComponents
+                    Pause-AndReturn
+                }
+                "6" { 
+                    View-Logs
+                    Pause-AndReturn
+                }
+                "7" { 
+                    Auto-Activate
+                    Pause-AndReturn
+                }
+                "8" { 
+                    Write-Log "Script ended by user" "INFO"
+                    Stop-Transcript | Out-Null
+                    Write-Host "`nGoodbye!`n" -ForegroundColor $global:ColorSuccess
+                    exit 0
+                }
+                default {
+                    Write-Host "Invalid selection! Please choose 1-8." -ForegroundColor $global:ColorError
+                    Start-Sleep -Seconds 1
+                }
+            }
+        }
+        catch {
+            Write-Log "Menu error: $_" "ERROR"
+            Pause-AndReturn
+        }
+    }
+}
+
+# Run main function
+try {
+    Main
+}
+catch {
+    Write-Host "Fatal error: $_" -ForegroundColor $global:ColorError
+    Write-Log "Fatal error: $_" "ERROR"
+    Pause-AndReturn
+    exit 1
+}
+#endregion
