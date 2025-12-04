@@ -63,15 +63,24 @@ function Show-Menu {
 
 function Install-App {
     param($app)
+
     if (Test-Path $app.InstallPath) {
         Write-Host "$($app.Name) is already installed. Skipping." -ForegroundColor Green
         return
     }
+
     $downloadDir = "$env:TEMP\merybist-installer"
     if (!(Test-Path $downloadDir)) { New-Item -Path $downloadDir -ItemType Directory | Out-Null }
+
+    # Generate filename
     $fileName = $app.Url.Split('/')[-1]
+    if ($fileName -eq "" -or $fileName -notmatch "\.exe$") {
+        $fileName = ($app.Name -replace '[^\w\-]', '') + ".exe"
+    }
+
     $targetPath = Join-Path $downloadDir $fileName
 
+    # Download
     if (!(Test-Path $targetPath)) {
         Write-Host "Downloading $($app.Name)..."
         try {
@@ -81,17 +90,39 @@ function Install-App {
             Write-Host "ERROR downloading $($app.Name): $_" -ForegroundColor Red
             return
         }
-    } else {
+    }
+    else {
         Write-Host "$($app.Name) already cached, skipping download." -ForegroundColor Yellow
     }
 
+    # Auto-fix missing .exe extension
+    if ($targetPath -notmatch "\.exe$") {
+        $newPath = "$targetPath.exe"
+        Rename-Item -Path $targetPath -NewName ($newPath | Split-Path -Leaf) -Force
+        $targetPath = $newPath
+        Write-Host "Renamed downloaded file to .exe automatically." -ForegroundColor Yellow
+    }
+
+    # Validate file size (avoid HTML downloads)
+    if ((Get-Item $targetPath).Length -lt 500000) {
+        Write-Host "Downloaded file is too small and likely not an installer. URL is not a direct .exe." -ForegroundColor Red
+        return
+    }
+
+    # Install
     Write-Host "Installing $($app.Name)..."
-    if ($app.Args -ne "") {
-        Start-Process -FilePath $targetPath -ArgumentList $app.Args -Wait
+    try {
+        if ($app.Args -ne "") {
+            Start-Process -FilePath $targetPath -ArgumentList $app.Args -Wait
+        }
+        else {
+            Start-Process -FilePath $targetPath -Wait
+        }
     }
-    else {
-        Start-Process -FilePath $targetPath -Wait
+    catch {
+        Write-Host "ERROR running installer for $($app.Name): $_" -ForegroundColor Red
     }
+
     Write-Host "$($app.Name) install finished.`n" -ForegroundColor Cyan
 }
 
