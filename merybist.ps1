@@ -112,10 +112,16 @@ function Install-App {
         Write-Host "Renamed downloaded file to .exe automatically." -ForegroundColor Yellow
     }
 
-    if ((Get-Item $targetPath).Length -lt 500000) {
-        Write-Host "Downloaded file is too small and likely not an installer." -ForegroundColor Red
-        return
+    # Skip size check for activation/key files
+    if ($app.Name -match "Key|Activate") {
+        Write-Host "Skipping size check for activation/key file." -ForegroundColor Yellow
     }
+    else {
+        # Validate file size (avoid HTML downloads)
+        if ((Get-Item $targetPath).Length -lt 500000) {
+            Write-Host "Downloaded file is too small and likely not an installer. URL is not a direct .exe." -ForegroundColor Red
+            return
+        }
 
     Write-Host "Installing $($app.Name)..."
     try {
