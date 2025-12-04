@@ -49,6 +49,14 @@ $apps = @(
         Args = "/quiet"
         InstallPath = "C:\Program Files\Tailscale\tailscale.exe"
     }
+    Write-Host "----------------------"
+    @{ 
+        Name = "WinRAR Key"
+        Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/rarreg.key"
+        Args = ""
+        InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
+    }
+    
 )
 
 function Show-Menu {
