@@ -17,7 +17,7 @@ $apps = @(
         Name = "iMe | DirectLink"
         Url = "https://imem.app/download/desktop/win64"
         Args = ""
-        InstallPath = "$env:USERPROFILE\AppData\Roaming\Telegram Desktop\Telegram.exe"
+        InstallPath = "$env:USERPROFILE\AppData\Roaming\iMe\iMe.exe"
     },
     @{
         Name = "Telegram | DirectLink"
