@@ -13,7 +13,7 @@ $apps = @(
         Args = "/S"
         InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
     },
-        @{ https://imem.app/download/desktop/win64
+        @{
         Name = "iMe | DirectLink"
         Url = "https://imem.app/download/desktop/win64"
         Args = ""
