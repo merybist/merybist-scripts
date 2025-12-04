@@ -1,13 +1,11 @@
 <# 
 Ultimate Windows Optimization by merybist
-- Interactive numeric menu
-- Fixed previous issues (confirm prompts, registry creation, service checks)
-- Logging to C:\merybist-opt\opt.log
-- Run as Administrator
+Refactored: nested menus, per-action control, logging, enable/disable pairs
+Run as Administrator
 #>
 
 # ===== Setup & safety =====
-$ConfirmPreference = 'None'  # Suppress confirmation prompts
+$ConfirmPreference = 'None'
 $ErrorActionPreference = 'Continue'
 
 $root = "C:\merybist-opt"
@@ -16,13 +14,13 @@ New-Item -ItemType Directory -Path $root -ErrorAction SilentlyContinue | Out-Nul
 
 function Write-Log {
     param([string]$msg, [string]$color = "Gray")
-    $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $ts   = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
     $line = "[$ts] $msg"
     Write-Host $line -ForegroundColor $color
     Add-Content -Path $log -Value $line
 }
 
-Write-Log "=== Ultimate Windows Optimization by merybist ===" "Cyan"
+Write-Log "=== Ultimate Windows Optimization by merybist (refactored) ===" "Cyan"
 
 # ===== Helpers =====
 function Ensure-RegKey {
@@ -33,9 +31,18 @@ function Ensure-RegKey {
 }
 
 function Safe-SetReg {
-    param([string]$Path,[string]$Name,[Object]$Value)
+    param(
+        [string]$Path,
+        [string]$Name,
+        [Object]$Value,
+        [Microsoft.Win32.RegistryValueKind]$Type = [Microsoft.Win32.RegistryValueKind]::DWord
+    )
     Ensure-RegKey $Path
-    Set-ItemProperty -Path $Path -Name $Name -Value $Value -ErrorAction SilentlyContinue
+    try {
+        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType $Type -Force -ErrorAction SilentlyContinue | Out-Null
+    } catch {
+        Set-ItemProperty -Path $Path -Name $Name -Value $Value -ErrorAction SilentlyContinue
+    }
 }
 
 function Disable-ServiceSafe {
@@ -44,7 +51,7 @@ function Disable-ServiceSafe {
     if ($svc) {
         try {
             Stop-Service $Name -Force -ErrorAction SilentlyContinue
-            Set-Service $Name -StartupType Disabled
+            Set-Service $Name -StartupType Disabled -ErrorAction SilentlyContinue
             Write-Log "Disabled service: $Name" "Green"
         } catch {
             Write-Log "Failed to disable ${Name}: $($_.Exception.Message)" "DarkYellow"
@@ -54,112 +61,286 @@ function Disable-ServiceSafe {
     }
 }
 
-# ===== Actions =====
-function Action-UltimatePlan {
-    Write-Log "Enabling Ultimate Performance power plan (if supported)..." "Yellow"
-    $guid = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-    try {
-        powercfg -duplicatescheme $guid 2>$null | Out-Null
-        powercfg -setactive $guid 2>$null     | Out-Null
-        Write-Log "Ultimate Performance plan set (or already active)." "Green"
-    } catch {
-        Write-Log "Ultimate Performance plan not supported on this edition." "DarkYellow"
+function Enable-ServiceSafe {
+    param([string]$Name)
+    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($svc) {
+        try {
+            Set-Service $Name -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service $Name -ErrorAction SilentlyContinue
+            Write-Log "Enabled service: $Name" "Green"
+        } catch {
+            Write-Log "Failed to enable ${Name}: $($_.Exception.Message)" "DarkYellow"
+        }
+    } else {
+        Write-Log "Service $Name not found, skipping." "DarkGray"
     }
 }
 
+# ===== Defender / SmartScreen / UAC =====
+function Action-DisableDefender {
+    Write-Log "Disabling Windows Defender..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" "DisableAntiSpyware" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" "DisableRoutinelyTakingAction" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableRealtimeMonitoring" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableBehaviorMonitoring" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableIOAVProtection" 1
+    $defenderServices = @("WinDefend","WdNisSvc","SecurityHealthService","wscsvc")
+    foreach ($s in $defenderServices) { Disable-ServiceSafe $s }
+    Write-Log "Windows Defender disabled (policy + services)." "Green"
+}
+
+function Action-EnableDefender {
+    Write-Log "Enabling Windows Defender..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" "DisableAntiSpyware" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" "DisableRoutinelyTakingAction" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableRealtimeMonitoring" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableBehaviorMonitoring" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableIOAVProtection" 0
+    $defenderServices = @("WinDefend","WdNisSvc","SecurityHealthService","wscsvc")
+    foreach ($s in $defenderServices) { Enable-ServiceSafe $s }
+    Write-Log "Windows Defender enabled (policy + services)." "Green"
+}
+
+function Action-DisableSmartScreen {
+    Write-Log "Disabling SmartScreen..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "EnableSmartScreen" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "ShellSmartScreenLevel" "Off" ([Microsoft.Win32.RegistryValueKind]::String)
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Edge" "SmartScreenEnabled" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Edge" "SmartScreenPuaEnabled" 0
+    Write-Log "SmartScreen disabled." "Green"
+}
+
+function Action-EnableSmartScreen {
+    Write-Log "Enabling SmartScreen..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "EnableSmartScreen" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "ShellSmartScreenLevel" "Warn" ([Microsoft.Win32.RegistryValueKind]::String)
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Edge" "SmartScreenEnabled" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Edge" "SmartScreenPuaEnabled" 1
+    Write-Log "SmartScreen enabled." "Green"
+}
+
+function Action-DisableUAC {
+    Write-Log "Disabling UAC..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "EnableLUA" 0
+    Write-Log "UAC disabled (reboot required)." "Green"
+}
+
+function Action-EnableUAC {
+    Write-Log "Enabling UAC..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "EnableLUA" 1
+    Write-Log "UAC enabled (reboot required)." "Green"
+}
+
+# ===== Services =====
 function Action-DisableServicesBasic {
-    Write-Log "Disabling non-essential services..." "Yellow"
+    Write-Log "Disabling non-essential services (basic)..." "Yellow"
     $services = @(
-        "Fax",                # Fax
-        "DiagTrack",          # Telemetry
-        "SysMain",            # Superfetch
-        "XblGameSave",        # Xbox Game Save
-        "XboxNetApiSvc",      # Xbox Networking
-        "XboxGipSvc",         # Xbox Accessory
-        "MapsBroker",         # Offline Maps
-        "RemoteRegistry",     # Remote Registry
-        "WerSvc",             # Windows Error Reporting
-        "dmwappushservice",   # Device Management WAP (may not exist)
-        "RetailDemo"          # Retail Demo
+        "Fax",
+        "DiagTrack",
+        "SysMain",
+        "XblGameSave",
+        "XboxNetApiSvc",
+        "XboxGipSvc",
+        "MapsBroker",
+        "RemoteRegistry",
+        "WerSvc",
+        "dmwappushservice",
+        "RetailDemo",
+        "SensrSvc",
+        "SessionEnv",
+        "SharedAccess",
+        "shpamsvc",
+        "SNMPTRAP",
+        "Spooler",
+        "ssh-agent",
+        "TermService",
+        "TroubleshootingSvc",
+        "UevAgentService",
+        "uhssvc",
+        "UmRdpService",
+        "vmicguestinterface",
+        "vmicheartbeat",
+        "vmickvpexchange",
+        "vmicrdv",
+        "vmicshutdown",
+        "vmictimesync",
+        "vmicvmsession",
+        "vmicvss",
+        "WarpJITSvc",
+        "WbioSrvc",
+        "WdiServiceHost",
+        "WdiSystemHost",
+        "WdNisSvc",
+        "WMPNetworkSvc",
+        "workfolderssvc",
+        "WpnService",
+        "WwanSvc",
+        "XblAuthManager"
     )
     foreach ($s in $services) { Disable-ServiceSafe $s }
+    Write-Log "Basic services disabled." "Green"
 }
 
 function Action-DisableServicesConditional {
-    Write-Log "Disabling conditional services (only if you don't use them)..." "Yellow"
+    Write-Log "Disabling conditional services (if unused)..." "Yellow"
     $services = @(
-        "SharedAccess",       # Internet Connection Sharing
-        "WSearch"             # Windows Search
+        "SharedAccess",
+        "WSearch",
+        "WebClient",
+        "Wecsvc",
+        "WiaRpc",
+        "WPDBusEnum",
+        "wlpasvc",
+        "wmiApSrv",
+        "WFDSConMgrSvc"
     )
     foreach ($s in $services) { Disable-ServiceSafe $s }
+    Write-Log "Conditional services disabled." "Green"
 }
 
-function Action-BackgroundAppsAndGame {
-    Write-Log "Disabling background apps & Game Bar/DVR..." "Yellow"
+function Action-DisableServicesAggressive {
+    Write-Log "Disabling aggressive service set..." "Yellow"
+    $services = @(
+        "SecurityHealthService",
+        "wscsvc",
+        "Themes",
+        "WpnService",
+        "WerSvc",
+        "WdiServiceHost",
+        "WdiSystemHost",
+        "WMPNetworkSvc",
+        "workfolderssvc"
+    )
+    foreach ($s in $services) { Disable-ServiceSafe $s }
+    Write-Log "Aggressive services set disabled." "Green"
+}
+
+function Action-EnableAllServices {
+    Write-Log "Enabling services from all optimization groups..." "Yellow"
+    $all = @(
+        "Fax","DiagTrack","SysMain","XblGameSave","XboxNetApiSvc","XboxGipSvc","MapsBroker","RemoteRegistry",
+        "WerSvc","dmwappushservice","RetailDemo","SensrSvc","SessionEnv","SharedAccess","shpamsvc","SNMPTRAP",
+        "Spooler","ssh-agent","TermService","TroubleshootingSvc","UevAgentService","uhssvc","UmRdpService",
+        "vmicguestinterface","vmicheartbeat","vmickvpexchange","vmicrdv","vmicshutdown","vmictimesync",
+        "vmicvmsession","vmicvss","WarpJITSvc","WbioSrvc","WdiServiceHost","WdiSystemHost","WdNisSvc",
+        "WebClient","Wecsvc","WiaRpc","wlpasvc","wmiApSrv","WMPNetworkSvc","workfolderssvc","WPDBusEnum",
+        "WpnService","wscsvc","WSearch","WwanSvc","XblAuthManager"
+    )
+    foreach ($s in $all) { Enable-ServiceSafe $s }
+    Write-Log "All services in lists set to Automatic and started where possible." "Green"
+}
+
+# ===== Background Apps & GameDVR =====
+function Action-DisableBackgroundApps {
+    Write-Log "Disabling background apps..." "Yellow"
     Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" "GlobalUserDisabled" 1
+    Write-Log "Background apps disabled." "Green"
+}
+
+function Action-EnableBackgroundApps {
+    Write-Log "Enabling background apps..." "Yellow"
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" "GlobalUserDisabled" 0
+    Write-Log "Background apps enabled." "Green"
+}
+
+function Action-DisableGameDVR {
+    Write-Log "Disabling Game DVR & Game Bar..." "Yellow"
     Safe-SetReg "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0
     Safe-SetReg "HKCU:\SOFTWARE\Microsoft\GameBar" "AllowAutoGameMode" 0
     Safe-SetReg "HKCU:\SOFTWARE\Microsoft\GameBar" "ShowStartupPanel" 0
-    Write-Log "Background apps and Game features disabled." "Green"
+    Write-Log "Game DVR & Game Bar disabled." "Green"
 }
 
+function Action-EnableGameDVR {
+    Write-Log "Enabling Game DVR & Game Bar..." "Yellow"
+    Safe-SetReg "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 1
+    Safe-SetReg "HKCU:\SOFTWARE\Microsoft\GameBar" "AllowAutoGameMode" 1
+    Safe-SetReg "HKCU:\SOFTWARE\Microsoft\GameBar" "ShowStartupPanel" 1
+    Write-Log "Game DVR & Game Bar enabled." "Green"
+}
+
+# ===== Visual Effects =====
 function Action-VisualEffectsPerformance {
-    Write-Log "Setting visual effects for performance..." "Yellow"
+    Write-Log "Setting visual effects to performance..." "Yellow"
     Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
-    Write-Log "Visual effects tuned." "Green"
+    Write-Log "Visual effects set to performance." "Green"
 }
 
+function Action-VisualEffectsDefault {
+    Write-Log "Restoring default visual effects..." "Yellow"
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 1
+    Write-Log "Visual effects restored to default." "Green"
+}
+
+# ===== Registry Tweaks =====
 function Action-RegistryPerformanceTweaks {
     Write-Log "Applying registry performance tweaks..." "Yellow"
-    # Tips & suggestions off
     Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SubscribedContent-310093Enabled" 0
     Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SystemPaneSuggestionsEnabled" 0
-    # Cortana off (policy)
     Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana" 0
-    # Telemetry off (policy)
     Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 0
-    # Delivery Optimization off
     Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" "DODownloadMode" 0
-    # Driver auto-update off
     Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" "SearchOrderConfig" 0
-    Write-Log "Registry tweaks applied." "Green"
+    Write-Log "Registry performance tweaks applied." "Green"
 }
 
+function Action-RegistryRestoreDefaults {
+    Write-Log "Restoring registry defaults for performance-related keys..." "Yellow"
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SubscribedContent-310093Enabled" 1
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SystemPaneSuggestionsEnabled" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 3
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" "DODownloadMode" 3
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" "SearchOrderConfig" 1
+    Write-Log "Registry defaults restored (approximate)." "Green"
+}
+
+# ===== Network Tweaks =====
 function Action-NetworkTweaksBasic {
     Write-Log "Applying basic network tweaks..." "Yellow"
-    # TCPA off
     Safe-SetReg "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnableTCPA" 0
     Write-Log "Basic network tweaks applied." "Green"
 }
 
 function Action-NetworkTweaksAggressive {
-    Write-Log "Applying aggressive netsh TCP tuning..." "Yellow"
+    Write-Log "Applying aggressive network tweaks (netsh)..." "Yellow"
     try {
         netsh int tcp set global autotuninglevel=disabled  | Out-Null
         netsh int tcp set global rss=enabled               | Out-Null
         netsh int tcp set global ecncapability=disabled    | Out-Null
         netsh int tcp set global chimney=disabled          | Out-Null
         netsh int tcp set global dca=disabled              | Out-Null
-        Write-Log "Aggressive network tuning applied." "Green"
+        Write-Log "Aggressive netsh tuning applied." "Green"
     } catch {
-        Write-Log "Failed netsh tuning: $($_.Exception.Message)" "DarkYellow"
+        Write-Log "Netsh tuning failed: $($_.Exception.Message)" "DarkYellow"
     }
 }
 
+function Action-NetworkRestoreDefaults {
+    Write-Log "Restoring default network settings (netsh)..." "Yellow"
+    try {
+        netsh int tcp set global autotuninglevel=normal    | Out-Null
+        netsh int tcp set global rss=default               | Out-Null
+        netsh int tcp set global ecncapability=default     | Out-Null
+        netsh int tcp set global chimney=default           | Out-Null
+        netsh int tcp set global dca=default               | Out-Null
+        Write-Log "Network settings restored to defaults." "Green"
+    } catch {
+        Write-Log "Failed to restore netsh defaults: $($_.Exception.Message)" "DarkYellow"
+    }
+}
+
+# ===== Cleanup =====
 function Action-CleanupSafe {
-    Write-Log "Running safe cleanup (Temp, Update cache, Prefetch, Logs, browser cache)..." "Yellow"
-    # Temp folders
+    Write-Log "Running safe cleanup..." "Yellow"
     Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
-    # Windows Update cache
     Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
     Start-Service wuauserv -ErrorAction SilentlyContinue
-    # Prefetch
     Remove-Item -Path "C:\Windows\Prefetch\*" -Recurse -Force -ErrorAction SilentlyContinue
-    # Logs (fully recursive)
     Get-ChildItem "C:\Windows\Logs" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-    # Browser caches
     $user = $env:USERPROFILE
     Remove-Item "$user\AppData\Local\Google\Chrome\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item "$user\AppData\Local\Microsoft\Edge\User Data\Default\Cache\*" -Recurse -Force -ErrorAction SilentlyContinue
@@ -167,27 +348,38 @@ function Action-CleanupSafe {
 }
 
 function Action-CleanupAggressive {
-    Write-Log "Running aggressive cleanup (WinSxS, shadows, icon/font caches)..." "Yellow"
+    Write-Log "Running aggressive cleanup..." "Yellow"
     try {
         Dism.exe /Online /Cleanup-Image /StartComponentCleanup /ResetBase | Out-Null
     } catch {
-        Write-Log "DISM cleanup failed or requires elevated context." "DarkYellow"
+        Write-Log "DISM cleanup failed or requires elevation." "DarkYellow"
     }
     try {
         vssadmin delete shadows /all /quiet | Out-Null
     } catch {
-        Write-Log "VSS shadow deletion skipped or unsupported." "DarkYellow"
+        Write-Log "VSS shadows deletion skipped or unsupported." "DarkYellow"
     }
-    # Icon cache
     Remove-Item "$env:LOCALAPPDATA\IconCache.db" -Force -ErrorAction SilentlyContinue
-    # Font cache (may rebuild on reboot)
     $fontCache = "$env:windir\ServiceProfiles\LocalService\AppData\Local\FontCache"
     Remove-Item "$fontCache\*.dat" -Force -ErrorAction SilentlyContinue
     Write-Log "Aggressive cleanup completed." "Green"
 }
 
+# ===== Power plan & restore point & status =====
+function Action-UltimatePlan {
+    Write-Log "Enabling Ultimate Performance power plan..." "Yellow"
+    $guid = "e9a42b02-d5df-448d-aa00-03f14749eb61"
+    try {
+        powercfg -duplicatescheme $guid 2>$null | Out-Null
+        powercfg -setactive $guid 2>$null       | Out-Null
+        Write-Log "Ultimate Performance plan active." "Green"
+    } catch {
+        Write-Log "Ultimate Performance plan not supported on this edition." "DarkYellow"
+    }
+}
+
 function Action-CreateRestorePoint {
-    Write-Log "Creating system restore point (Pre-Optimization)..." "Yellow"
+    Write-Log "Creating system restore point..." "Yellow"
     try {
         Checkpoint-Computer -Description "merybist optimization restore point" -RestorePointType "Modify_Settings"
         Write-Log "Restore point created." "Green"
@@ -198,61 +390,357 @@ function Action-CreateRestorePoint {
 
 function Action-StatusSummary {
     Write-Log "Status summary:" "Cyan"
-    # Power plan
     try {
         $activeGuid = (powercfg /getactivescheme) 2>$null
         Write-Log ("Active power plan: " + $activeGuid) "Gray"
-    } catch { Write-Log "Cannot query power plan." "DarkYellow" }
-    # Key services status
+    } catch {
+        Write-Log "Cannot query power plan." "DarkYellow"
+    }
     $checkSvcs = @("SysMain","WSearch","DiagTrack","Fax","WerSvc","RemoteRegistry")
     foreach ($s in $checkSvcs) {
         $svc = Get-Service -Name $s -ErrorAction SilentlyContinue
-        if ($svc) { Write-Log ("Service {0}: {1}" -f $s, $svc.Status) "Gray" } else { Write-Log "Service ${s}: not present" "DarkGray" }
+        if ($svc) {
+            Write-Log ("Service {0}: {1}" -f $s, $svc.Status) "Gray"
+        } else {
+            Write-Log "Service ${s}: not present" "DarkGray"
+        }
     }
-    Write-Log "Registry tweaks applied to ContentDeliveryManager, DataCollection, Windows Search, DeliveryOptimization." "Gray"
-    Write-Log "Cleanup paths processed: Temp, SoftwareDistribution\Download, Prefetch, Logs, Browser caches." "Gray"
+    Write-Log "Registry tweaks: ContentDeliveryManager, DataCollection, Windows Search, DeliveryOptimization, DriverSearching." "Gray"
+    Write-Log "Cleanup paths: Temp, SoftwareDistribution\Download, Prefetch, Logs, Browser caches." "Gray"
 }
 
-# ===== Interactive menu =====
-function Show-Menu {
+# ===== Menus (Style C) =====
+function Show-Separator {
+    Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+}
+
+function Show-MainMenu {
     Clear-Host
-    Write-Host "=== merybist Optimization Menu ===`n" -ForegroundColor Cyan
-    Write-Host "1. Enable Ultimate Performance power plan"
-    Write-Host "2. Disable non-essential services (basic)"
-    Write-Host "3. Disable conditional services (ICS, Search)"
-    Write-Host "4. Disable background apps & Game DVR/Game Bar"
-    Write-Host "5. Set visual effects to performance"
-    Write-Host "6. Apply registry performance tweaks"
-    Write-Host "7. Apply basic network tweaks)"
-    Write-Host "8. Apply aggressive network tweaks (netsh"
-    Write-Host "9. Run safe cleanup"
-    Write-Host "10. Run aggressive cleanup"
-    Write-Host "11. Create system restore point"
-    Write-Host "12. Show status summary"
-    Write-Host "0. Exit"
+    Show-Separator
+    Write-Host "   merybist Optimization Menu" -ForegroundColor Cyan
+    Show-Separator
+    Write-Host " 1. Windows Defender | UAC"
+    Write-Host " 2. Services Optimization"
+    Write-Host " 3. Background Apps & GameDVR"
+    Write-Host " 4. Visual Effects"
+    Write-Host " 5. Registry Tweaks"
+    Write-Host " 6. Network Tweaks"
+    Write-Host " 7. Cleanup"
+    Write-Host " 8. Power Plan"
+    Write-Host " 9. Restore Point"
+    Write-Host "10. Status Summary"
+    Write-Host " 0. Exit"
+    Show-Separator
 }
 
+function Show-DefenderMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Windows Defender | SmartScreen | UAC" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Disable Windows Defender"
+    Write-Host " 2. Enable Windows Defender"
+    Write-Host " 3. Disable SmartScreen"
+    Write-Host " 4. Enable SmartScreen"
+    Write-Host " 5. Disable UAC"
+    Write-Host " 6. Enable UAC"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-ServicesMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Services Optimization" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Disable Basic Services"
+    Write-Host " 2. Disable Conditional Services"
+    Write-Host " 3. Disable Aggressive Services"
+    Write-Host " 4. Enable All Listed Services"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-BackgroundMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Background Apps & GameDVR" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Disable Background Apps"
+    Write-Host " 2. Enable Background Apps"
+    Write-Host " 3. Disable GameDVR & Game Bar"
+    Write-Host " 4. Enable GameDVR & Game Bar"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-VisualMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Visual Effects" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Set Visual Effects to Performance"
+    Write-Host " 2. Restore Default Visual Effects"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-RegistryMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Registry Tweaks" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Apply Performance Registry Tweaks"
+    Write-Host " 2. Restore Registry Defaults"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-NetworkMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Network Tweaks" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Apply Basic Network Tweaks"
+    Write-Host " 2. Apply Aggressive Network Tweaks"
+    Write-Host " 3. Restore Network Defaults"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-CleanupMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Cleanup" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Safe Cleanup"
+    Write-Host " 2. Aggressive Cleanup"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-PowerPlanMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Power Plan" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Enable Ultimate Performance Plan"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-RestoreMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Restore Point" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Create Restore Point"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+function Show-StatusMenu {
+    Clear-Host
+    Show-Separator
+    Write-Host "   Status Summary" -ForegroundColor Yellow
+    Show-Separator
+    Write-Host " 1. Show Status Summary"
+    Write-Host " 0. Back"
+    Show-Separator
+}
+
+# ===== Main Loop =====
 do {
-    Show-Menu
-    $choice = Read-Host "Enter your choice (0-12)"
-    switch ($choice) {
-        '1'  { Action-UltimatePlan }
-        '2'  { Action-DisableServicesBasic }
-        '3'  { Action-DisableServicesConditional }
-        '4'  { Action-BackgroundAppsAndGame }
-        '5'  { Action-VisualEffectsPerformance }
-        '6'  { Action-RegistryPerformanceTweaks }
-        '7'  { Action-NetworkTweaksBasic }
-        '8'  { Action-NetworkTweaksAggressive }
-        '9'  { Action-CleanupSafe }
-        '10' { Action-CleanupAggressive }
-        '11' { Action-CreateRestorePoint }
-        '12' { Action-StatusSummary }
-        '0'  { Write-Log "Exiting optimization menu." "Cyan"; break }
-        default { Write-Host "Invalid selection. Try again." -ForegroundColor Yellow }
+    Show-MainMenu
+    $main = Read-Host "Select option"
+
+    switch ($main) {
+        '1' {
+            do {
+                Show-DefenderMenu
+                $d = Read-Host "Select option"
+                switch ($d) {
+                    '1' { Action-DisableDefender }
+                    '2' { Action-EnableDefender }
+                    '3' { Action-DisableSmartScreen }
+                    '4' { Action-EnableSmartScreen }
+                    '5' { Action-DisableUAC }
+                    '6' { Action-EnableUAC }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($d -ne '0') {
+                    Write-Host "`nPress any key to return..." 
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '2' {
+            do {
+                Show-ServicesMenu
+                $s = Read-Host "Select option"
+                switch ($s) {
+                    '1' { Action-DisableServicesBasic }
+                    '2' { Action-DisableServicesConditional }
+                    '3' { Action-DisableServicesAggressive }
+                    '4' { Action-EnableAllServices }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($s -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '3' {
+            do {
+                Show-BackgroundMenu
+                $b = Read-Host "Select option"
+                switch ($b) {
+                    '1' { Action-DisableBackgroundApps }
+                    '2' { Action-EnableBackgroundApps }
+                    '3' { Action-DisableGameDVR }
+                    '4' { Action-EnableGameDVR }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($b -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '4' {
+            do {
+                Show-VisualMenu
+                $v = Read-Host "Select option"
+                switch ($v) {
+                    '1' { Action-VisualEffectsPerformance }
+                    '2' { Action-VisualEffectsDefault }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($v -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '5' {
+            do {
+                Show-RegistryMenu
+                $r = Read-Host "Select option"
+                switch ($r) {
+                    '1' { Action-RegistryPerformanceTweaks }
+                    '2' { Action-RegistryRestoreDefaults }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($r -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '6' {
+            do {
+                Show-NetworkMenu
+                $n = Read-Host "Select option"
+                switch ($n) {
+                    '1' { Action-NetworkTweaksBasic }
+                    '2' { Action-NetworkTweaksAggressive }
+                    '3' { Action-NetworkRestoreDefaults }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($n -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '7' {
+            do {
+                Show-CleanupMenu
+                $c = Read-Host "Select option"
+                switch ($c) {
+                    '1' { Action-CleanupSafe }
+                    '2' { Action-CleanupAggressive }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($c -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '8' {
+            do {
+                Show-PowerPlanMenu
+                $p = Read-Host "Select option"
+                switch ($p) {
+                    '1' { Action-UltimatePlan }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($p -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '9' {
+            do {
+                Show-RestoreMenu
+                $rp = Read-Host "Select option"
+                switch ($rp) {
+                    '1' { Action-CreateRestorePoint }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($rp -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '10' {
+            do {
+                Show-StatusMenu
+                $ss = Read-Host "Select option"
+                switch ($ss) {
+                    '1' { Action-StatusSummary }
+                    '0' { break }
+                    default { Write-Host "Invalid selection." -ForegroundColor Yellow }
+                }
+                if ($ss -ne '0') {
+                    Write-Host "`nPress any key to return..."
+                    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+                }
+            } while ($true)
+        }
+
+        '0' {
+            Write-Log "Exiting optimization menu." "Cyan"
+            break
+        }
+
+        default {
+            Write-Host "Invalid selection." -ForegroundColor Yellow
+            Write-Host "`nPress any key to return..."
+            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        }
     }
-    if ($choice -ne '0') {
-        Write-Host "`nPress any key to return to menu..."
-        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-    }
+
 } while ($true)
