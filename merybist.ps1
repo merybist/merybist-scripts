@@ -42,6 +42,12 @@ $apps = @(
         Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/SpotifySetup.exe"
         Args = "/silent"
         InstallPath = "$env:USERPROFILE\AppData\Roaming\Spotify\Spotify.exe"
+    },
+    @{
+        Name = "Tailscale | DirectLink"
+        Url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
+        Args = "/quiet"
+        InstallPath = "C:\Program Files\Tailscale\tailscale.exe"
     }
 )
 
