@@ -124,21 +124,32 @@ function Install-App {
         }
     }
 
+    # Install or copy (for keys)
     Write-Host "Installing $($app.Name)..."
-    try {
-        if ($app.Args -ne "") {
-            Start-Process -FilePath $targetPath -ArgumentList $app.Args -Wait
+    
+    if ($app.Name -match "Key|Activate") {
+        try {
+            Copy-Item -Path $targetPath -Destination $app.InstallPath -Force
+            Write-Host "$($app.Name) copied successfully." -ForegroundColor Green
         }
-        else {
-            Start-Process -FilePath $targetPath -Wait
+        catch {
+            Write-Host "ERROR copying key file: $_" -ForegroundColor Red
         }
     }
-    catch {
-        Write-Host "ERROR running installer for $($app.Name): $_" -ForegroundColor Red
+    else {
+        try {
+            if ($app.Args -ne "") {
+                Start-Process -FilePath $targetPath -ArgumentList $app.Args -Wait
+            }
+            else {
+                Start-Process -FilePath $targetPath -Wait
+            }
+        }
+        catch {
+            Write-Host "ERROR running installer for $($app.Name): $_" -ForegroundColor Red
+        }
     }
 
-    Write-Host "$($app.Name) install finished.`n" -ForegroundColor Cyan
-}
 
 do {
     Show-Menu
