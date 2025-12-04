@@ -63,8 +63,6 @@ function Show-Menu {
             Write-Host "$($i+1). $($app.Name)" -ForegroundColor Yellow
         }
     }
-    Write-Host "-----------------------------------"
-    Write-Host "11. Activation"
     Write-Host "0. Exit`n"
     Write-Host "Select a program number to install:"
 }
@@ -150,9 +148,6 @@ do {
         Write-Host "Invalid selection. Try again."
         Start-Sleep -Seconds 2
     }
-    '11' {
-    Write-Host "Activation section (add your own logic here)"
-    Write-Host "`nPress any key to return..."
     $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
     }
 } while ($true)
