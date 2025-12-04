@@ -13,11 +13,11 @@ $apps = @(
         Args = "/S"
         InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
     },
-        @{
+    @{ 
         Name = "iMe | DirectLink"
-        Url = "https://imem.app/download/desktop/win64"
-        Args = ""
-        InstallPath = "$env:USERPROFILE\AppData\Roaming\iMe\iMe.exe"
+        Url = "https://dl.ime.app/windows/iMeSetup.exe"
+        Args = "/S"
+        InstallPath = "$env:USERPROFILE\AppData\Local\iMe\iMe.exe"
     },
     @{
         Name = "Telegram | DirectLink"
@@ -33,8 +33,8 @@ $apps = @(
     },
     @{ 
         Name = "Visual Studio Code | DirectLink"
-        Url = "https://update.code.visualstudio.com/1.106.3/win32-x64-user/stable"
-        Args = ""
+        Url = "https://update.code.visualstudio.com/latest/win32-x64-user/stable"
+        Args = "--silent --mergetasks=!runcode"
         InstallPath = "$env:USERPROFILE\AppData\Local\Programs\Microsoft VS Code\Code.exe"
     },
     @{ 
