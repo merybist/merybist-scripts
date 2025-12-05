@@ -145,11 +145,11 @@ function Install-App {
                 Start-Process -FilePath $targetPath -Wait
             }
         }
-        catch {
+                catch {
             Write-Host "ERROR running installer for $($app.Name): $_" -ForegroundColor Red
         }
     }
-
+}   # ✅ FIXED — closes Install-App function
 
 do {
     Show-Menu
