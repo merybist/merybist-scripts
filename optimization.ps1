@@ -562,6 +562,99 @@ function Action-StatusSummary {
     }
 }
 
+# ===== System Detection & Auto-Optimization (FPS focused) =====
+function Get-SystemProfile {
+    $profile = [ordered]@{
+        OS         = "Unknown"
+        Version    = ""
+        Build      = ""
+        IsWindows11 = $false
+        Storage    = "Unknown"
+    }
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem
+        $profile.OS      = $os.Caption
+        $profile.Version = $os.Version
+        $profile.Build   = $os.BuildNumber
+        if (($os.Caption -match "Windows 11") -or ([version]$os.Version -ge [version]"10.0.22000")) {
+            $profile.IsWindows11 = $true
+        }
+    } catch {}
+
+    # detect SSD / HDD if possible
+    try {
+        $physical = Get-PhysicalDisk -ErrorAction SilentlyContinue
+        if ($physical) {
+            $ssd = $physical | Where-Object MediaType -eq "SSD"
+            $hdd = $physical | Where-Object MediaType -eq "HDD"
+            if ($ssd.Count -gt 0 -and $hdd.Count -eq 0) { $profile.Storage = "SSD" }
+            elseif ($hdd.Count -gt 0 -and $ssd.Count -eq 0) { $profile.Storage = "HDD" }
+            elseif ($ssd.Count -gt 0 -and $hdd.Count -gt 0) { $profile.Storage = "Mixed" }
+        }
+    } catch {}
+
+    Write-Log ("System profile: OS={0} Build={1} Storage={2} (Win11={3})" -f `
+        $profile.OS, $profile.Build, $profile.Storage, $profile.IsWindows11) "Gray"
+
+    return $profile
+}
+
+function Action-AutoOptimize {
+    Write-Log "Running auto-optimization based on OS + storage (FPS oriented)..." "Cyan"
+    $p = Get-SystemProfile
+
+    # Загальні FPS/latency твіки
+    Action-AdvancedCPUTweaks
+    Action-AdvancedGamingTweaks
+    Action-AdvancedNetworkTweaks
+    Action-DisableGameDVR
+    Action-VisualEffectsPerformance
+    Action-RegistryPerformanceTweaks
+
+    if (-not $p.IsWindows11 -and $p.Storage -eq "HDD") {
+        Write-Log "Detected Windows 10 + HDD -> HDD-friendly tuning (SysMain + Search ON)" "Yellow"
+        try {
+            Set-Service SysMain -StartupType Automatic -ErrorAction SilentlyContinue
+            Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\SysMain" -Name "DelayedAutoStart" -Value 1 -ErrorAction SilentlyContinue
+        } catch {}
+        try {
+            Set-Service WSearch -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service WSearch -ErrorAction SilentlyContinue
+        } catch {}
+        Action-AdvancedDiskTweaks
+    }
+    elseif ($p.IsWindows11 -and $p.Storage -eq "SSD") {
+        Write-Log "Detected Windows 11 + SSD -> агресивні FPS/latency твики (SysMain + Search OFF)" "Yellow"
+        try {
+            Stop-Service SysMain -Force -ErrorAction SilentlyContinue
+            Set-Service SysMain -StartupType Disabled -ErrorAction SilentlyContinue
+        } catch {}
+        try {
+            Stop-Service WSearch -Force -ErrorAction SilentlyContinue
+            Set-Service WSearch -StartupType Disabled -ErrorAction SilentlyContinue
+        } catch {}
+        Action-AdvancedDiskTweaks
+        Action-NetworkTweaksAggressive
+    }
+    else {
+        Write-Log "Unknown / mixed combo -> balanced tweaks" "Yellow"
+        Action-AdvancedDiskTweaks
+    }
+
+    # GPU Hardware Accelerated Scheduling (if supported)
+    try {
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" `
+            /v HwSchMode /t REG_DWORD /d 2 /f | Out-Null
+        Write-Log "GPU Hardware Scheduling enabled (HwSchMode=2)." "Green"
+    } catch {
+        Write-Log "Failed to enable GPU Hardware Scheduling (maybe unsupported)." "DarkYellow"
+    }
+
+    # Power plan for performance
+    Action-UltimatePlan
+    Write-Log "Auto optimization complete. Reboot is recommended for full effect." "Green"
+}
+
 # ===== Menus =====
 
 function Show-MainMenu {
@@ -582,6 +675,7 @@ function Show-MainMenu {
     Write-Host " 10. Power Plan" -ForegroundColor Yellow
     Write-Host " 11. Restore Point" -ForegroundColor Yellow
     Write-Host " 12. Status Summary" -ForegroundColor Yellow
+    Write-Host " 13. Auto Optimize (per system & FPS)" -ForegroundColor Green
     Write-Host " 0.  Exit" -ForegroundColor Red
     Write-Host ""
 }
@@ -925,6 +1019,7 @@ do {
         '10' { Show-PowerPlanMenu }
         '11' { Show-RestoreMenu }
         '12' { Show-StatusMenu }
+        '13' { Action-AutoOptimize }
         '0' {
             Write-Log "Exiting optimization menu. Thank you for using merybist optimizer v2.0!" "Cyan"
             break

@@ -8,10 +8,10 @@ $apps = @(
         InstallPath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
     },
     @{ 
-        Name = "WinRAR"
-        Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/winrar.exe"
-        Args = "/S"
-        InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
+        Name = "7-zip"
+        Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/7-zip.exe"
+        Args = ""
+        InstallPath = "C:\Program Files\7-Zip\7zFM.exe"
     },
     @{ 
         Name = "iMe | DirectLink"
@@ -49,8 +49,20 @@ $apps = @(
         Args = "/quiet"
         InstallPath = "C:\Program Files\Tailscale\tailscale.exe"
     },
+        @{
+        Name = "Itunes | DirectLink"
+        Url = "https://www.apple.com/itunes/download/win64"
+        Args = ""
+        InstallPath = "C:\Program Files\Itunes\iTunes.exe"
+    },
     @{ 
-        Name = "WinRAR Key"
+        Name = "WinRAR"
+        Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/winrar.exe"
+        Args = "/S"
+        InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
+    },
+    @{ 
+        Name = "WinRAR Activation"
         Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/rarreg.key"
         Args = ""
         InstallPath = "C:\Program Files\WinRAR\rarreg.key"
