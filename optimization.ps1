@@ -1,565 +1,826 @@
-#requires -RunAsAdministrator
-<#
-merybist Optimizer PRO (Single performance profile, PS 5.1 compatible, ASCII-only)
-- Interactive mode: asks Y/N before each change
-- Aggressive services OFF (with warning) + Restore services
-- Keeps your "Registry Tweaks (Basic)" exactly as you had (same keys/values)
-- Rollback state JSON (registry + services). Use UNDO last run.
+<# 
+Ultimate Windows Optimization by merybist v3.0
+- Windows PowerShell 5.1 compatible
+- ASCII only output
+- Aggressive performance oriented
+- Auto mode asks y/n before each change
+Run as Administrator recommended.
 #>
 
-param(
-    [switch]$Auto,
-    [switch]$Undo,
-    [switch]$WhatIf
-)
+$ErrorActionPreference = "SilentlyContinue"
+$ConfirmPreference = "None"
 
-# =========================
-# Setup
-# =========================
-$ConfirmPreference = 'None'
-$ErrorActionPreference = 'Continue'
-
-$root = "C:\merybist-opt"
-$log  = Join-Path $root "opt.log"
-$stateDir = Join-Path $root "state"
-New-Item -ItemType Directory -Path $root -ErrorAction SilentlyContinue | Out-Null
-New-Item -ItemType Directory -Path $stateDir -ErrorAction SilentlyContinue | Out-Null
+$Root = "C:\merybist-opt"
+$LogPath = Join-Path $Root "opt.log"
+$SvcBackupPath = Join-Path $Root "services_backup.json"
+New-Item -ItemType Directory -Path $Root -Force | Out-Null
 
 function Write-Log {
-    param([string]$msg, [string]$color = "Gray")
-    $ts   = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-    $line = "[$ts] $msg"
-    Write-Host $line -ForegroundColor $color
-    Add-Content -Path $log -Value $line
+    param(
+        [string]$Message,
+        [string]$Color = "Gray"
+    )
+    $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $line = "[" + $ts + "] " + $Message
+    Write-Host $line -ForegroundColor $Color
+    Add-Content -Path $LogPath -Value $line
 }
 
-function Line {
-    param([int]$n = 62, [string]$ch = "=", [string]$color = "Cyan")
-    Write-Host ($ch * $n) -ForegroundColor $color
+function Test-IsAdmin {
+    try {
+        $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $p  = New-Object Security.Principal.WindowsPrincipal($id)
+        return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    } catch {
+        return $false
+    }
 }
 
-Write-Log "=== merybist Optimizer PRO (PS 5.1, ASCII-only) ===" "Cyan"
-if ($WhatIf) { Write-Log "WHATIF MODE: changes will be logged but not applied." "Yellow" }
+function Prompt-YesNo {
+    param(
+        [string]$Question,
+        [string]$Default = "N"  # Y or N
+    )
 
-# =========================
-# State / Rollback
-# =========================
-$runId = (Get-Date -Format "yyyyMMdd_HHmmss")
-$stateFile = Join-Path $stateDir ("state_$runId.json")
-
-$global:State = [ordered]@{
-    runId   = $runId
-    created = (Get-Date).ToString("o")
-    changes = @()
-}
-
-function Save-State {
-    try { ($global:State | ConvertTo-Json -Depth 8) | Set-Content -Path $stateFile -Encoding UTF8 } catch {}
-}
-
-function Add-Change {
-    param([string]$Type,[string]$Target,$Before,$After,$Meta=$null)
-    $global:State.changes += [ordered]@{ type=$Type; target=$Target; before=$Before; after=$After; meta=$Meta }
-    Save-State
-}
-
-function Get-LastStateFile {
-    Get-ChildItem $stateDir -Filter "state_*.json" -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending | Select-Object -First 1
-}
-
-# =========================
-# Prompts
-# =========================
-function Ask-YesNo {
-    param([string]$Question, [ValidateSet("Y","N")] [string]$Default = "Y")
-    $suffix = "[Y/n]"
-    if ($Default -ne "Y") { $suffix = "[y/N]" }
+    $d = $Default.ToUpper()
+    $suffix = ""
+    if ($d -eq "Y") { $suffix = "[Y/n]" } else { $suffix = "[y/N]" }
 
     while ($true) {
-        $ans = Read-Host ("{0} {1}" -f $Question, $suffix)
-        if ([string]::IsNullOrWhiteSpace($ans)) { $ans = $Default }
-        $ans = $ans.Trim().ToLower()
-        if ($ans -eq "y" -or $ans -eq "yes") { return $true }
-        if ($ans -eq "n" -or $ans -eq "no")  { return $false }
+        $ans = Read-Host ($Question + " " + $suffix)
+        if ([string]::IsNullOrWhiteSpace($ans)) { $ans = $d }
+
+        $ans = $ans.Trim().ToUpper()
+        if ($ans -eq "Y") { return $true }
+        if ($ans -eq "N") { return $false }
         Write-Host "Please type Y or N." -ForegroundColor Yellow
     }
 }
 
-function Confirm-Risky {
-    param([string]$Title,[string]$Details)
-    Write-Host ""
-    Line 62 "!" "Red"
-    Write-Host ("WARNING: {0}" -f $Title) -ForegroundColor Red
-    if ($Details) { Write-Host $Details -ForegroundColor Red }
-    Line 62 "!" "Red"
-    Write-Host ""
-    $ans = Read-Host "Type YES to continue"
-    if ($ans -eq "YES") { return $true }
-    return $false
-}
-
-# =========================
-# Registry helpers
-# =========================
 function Ensure-RegKey {
     param([string]$Path)
     if (-not (Test-Path $Path)) {
-        if (-not $WhatIf) { New-Item -Path $Path -Force -ErrorAction SilentlyContinue | Out-Null }
+        New-Item -Path $Path -Force | Out-Null
     }
 }
 
-function Get-RegValue {
-    param([string]$Path,[string]$Name)
+function Safe-SetReg {
+    param(
+        [string]$Path,
+        [string]$Name,
+        [object]$Value,
+        [Microsoft.Win32.RegistryValueKind]$Type = [Microsoft.Win32.RegistryValueKind]::DWord
+    )
+    Ensure-RegKey $Path
+    try {
+        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType $Type -Force | Out-Null
+    } catch {
+        try { Set-ItemProperty -Path $Path -Name $Name -Value $Value -Force | Out-Null } catch {}
+    }
+}
+
+function Safe-DelRegValue {
+    param(
+        [string]$Path,
+        [string]$Name
+    )
     try {
         if (Test-Path $Path) {
-            $p = Get-ItemProperty -Path $Path -ErrorAction SilentlyContinue
-            if ($null -ne $p -and ($p.PSObject.Properties.Name -contains $Name)) { return $p.$Name }
+            Remove-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         }
+    } catch {}
+}
+
+function Get-SystemProfile {
+    $p = [ordered]@{
+        OS          = "Unknown"
+        Version     = ""
+        Build       = ""
+        IsWindows11 = $false
+        Device      = "Desktop"
+        Storage     = "Unknown"
+        HasWinget   = $false
+    }
+
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem
+        $p.OS      = $os.Caption
+        $p.Version = $os.Version
+        $p.Build   = $os.BuildNumber
+        if (($os.Caption -match "Windows 11") -or ([version]$os.Version -ge [version]"10.0.22000")) {
+            $p.IsWindows11 = $true
+        }
+    } catch {}
+
+    # Laptop detection (best-effort)
+    try {
+        $enc = Get-CimInstance Win32_SystemEnclosure
+        $chassis = @()
+        if ($enc -and $enc.ChassisTypes) { $chassis = $enc.ChassisTypes }
+        # Common laptop chassis types: 8 (Portable), 9 (Laptop), 10 (Notebook), 14 (SubNotebook)
+        $isLaptop = $false
+        foreach ($t in $chassis) {
+            if ($t -in @(8,9,10,14)) { $isLaptop = $true }
+        }
+        if ($isLaptop) { $p.Device = "Laptop" } else { $p.Device = "Desktop" }
+    } catch {}
+
+    # Storage detection (best-effort)
+    try {
+        $physical = Get-PhysicalDisk
+        if ($physical) {
+            $ssd = $physical | Where-Object { $_.MediaType -eq "SSD" }
+            $hdd = $physical | Where-Object { $_.MediaType -eq "HDD" }
+            if ($ssd.Count -gt 0 -and $hdd.Count -eq 0) { $p.Storage = "SSD" }
+            elseif ($hdd.Count -gt 0 -and $ssd.Count -eq 0) { $p.Storage = "HDD" }
+            elseif ($ssd.Count -gt 0 -and $hdd.Count -gt 0) { $p.Storage = "Mixed" }
+        }
+    } catch {}
+
+    try {
+        $w = Get-Command winget -ErrorAction SilentlyContinue
+        if ($w) { $p.HasWinget = $true }
+    } catch {}
+
+    return $p
+}
+
+# -------------------------
+# Services (Aggressive)
+# -------------------------
+$AggressiveServices = @(
+    "DiagTrack",
+    "dmwappushservice",
+    "SysMain",
+    "WSearch",
+    "WerSvc",
+    "WMPNetworkSvc",
+    "workfolderssvc",
+    "RemoteRegistry",
+    "MapsBroker",
+    "Fax",
+    "RetailDemo",
+    "WpnService",
+    "XblAuthManager",
+    "XblGameSave",
+    "XboxNetApiSvc",
+    "XboxGipSvc"
+)
+
+function Get-ServiceStartType {
+    param([string]$Name)
+    try {
+        $svc = Get-CimInstance Win32_Service -Filter ("Name='" + $Name + "'")
+        if ($svc) { return $svc.StartMode } # Auto, Manual, Disabled
     } catch {}
     return $null
 }
 
-function Reg-Set {
+function Set-ServiceStartType {
     param(
-        [string]$Path,[string]$Name,[Object]$Value,
-        [Microsoft.Win32.RegistryValueKind]$Type = [Microsoft.Win32.RegistryValueKind]::DWord
+        [string]$Name,
+        [string]$Mode # Automatic, Manual, Disabled
     )
-    Ensure-RegKey $Path
-    $before = Get-RegValue $Path $Name
-    Add-Change "registry_set" "$Path\$Name" $before $Value @{ kind="$Type" }
-
-    if ($WhatIf) { return }
-
     try {
-        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType $Type -Force -ErrorAction SilentlyContinue | Out-Null
-    } catch {
-        try { Set-ItemProperty -Path $Path -Name $Name -Value $Value -ErrorAction SilentlyContinue } catch {}
-    }
-}
-
-function Reg-Remove {
-    param([string]$Path,[string]$Name)
-    $before = Get-RegValue $Path $Name
-    Add-Change "registry_remove" "$Path\$Name" $before $null $null
-
-    if ($WhatIf) { return }
-
-    try {
-        if (Test-Path $Path) {
-            $p = Get-ItemProperty -Path $Path -ErrorAction SilentlyContinue
-            if ($null -ne $p -and ($p.PSObject.Properties.Name -contains $Name)) {
-                Remove-ItemProperty -Path $Path -Name $Name -Force -ErrorAction SilentlyContinue
-            }
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if (-not $svc) { return $false }
+        if ($Mode -eq "Disabled") {
+            try { Stop-Service -Name $Name -Force | Out-Null } catch {}
+            Set-Service -Name $Name -StartupType Disabled | Out-Null
+            return $true
         }
-    } catch {}
-}
-
-# =========================
-# Service helpers
-# =========================
-function Svc-Disable {
-    param([string]$Name)
-    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
-    if (-not $svc) { Write-Log "Service $Name not found, skipping." "DarkGray"; return }
-
-    $before = [ordered]@{ status="$($svc.Status)"; startType="$($svc.StartType)" }
-    Add-Change "service" $Name $before @{ action="Disable" } $null
-
-    if ($WhatIf) { Write-Log "WHATIF: would disable service $Name" "DarkYellow"; return }
-
-    try {
-        Stop-Service $Name -Force -ErrorAction SilentlyContinue
-        Set-Service $Name -StartupType Disabled -ErrorAction SilentlyContinue
-        Write-Log "Disabled service: $Name" "Green"
-    } catch {
-        Write-Log ("Failed to disable ${Name}: {0}" -f $_.Exception.Message) "DarkYellow"
-    }
-}
-
-function Svc-Enable {
-    param([string]$Name,[ValidateSet("Automatic","Manual")] [string]$Startup="Automatic")
-    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
-    if (-not $svc) { Write-Log "Service $Name not found, skipping." "DarkGray"; return }
-
-    $before = [ordered]@{ status="$($svc.Status)"; startType="$($svc.StartType)" }
-    Add-Change "service" $Name $before @{ action="Enable"; startup=$Startup } $null
-
-    if ($WhatIf) { Write-Log ("WHATIF: would enable service {0} ({1})" -f $Name,$Startup) "DarkYellow"; return }
-
-    try {
-        Set-Service $Name -StartupType $Startup -ErrorAction SilentlyContinue
-        Start-Service $Name -ErrorAction SilentlyContinue
-        Write-Log ("Enabled service: {0} ({1})" -f $Name,$Startup) "Green"
-    } catch {
-        Write-Log ("Failed to enable ${Name}: {0}" -f $_.Exception.Message) "DarkYellow"
-    }
-}
-
-# =========================
-# Detect
-# =========================
-function Is-Laptop {
-    try {
-        $b = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue
-        if ($null -ne $b) { return $true }
+        if ($Mode -eq "Manual") {
+            Set-Service -Name $Name -StartupType Manual | Out-Null
+            return $true
+        }
+        if ($Mode -eq "Automatic") {
+            Set-Service -Name $Name -StartupType Automatic | Out-Null
+            try { Start-Service -Name $Name | Out-Null } catch {}
+            return $true
+        }
     } catch {}
     return $false
 }
 
-function Get-StorageProfile {
-    try {
-        $physical = Get-PhysicalDisk -ErrorAction SilentlyContinue
-        if ($physical) {
-            $ssd = @($physical | Where-Object MediaType -eq "SSD")
-            $hdd = @($physical | Where-Object MediaType -eq "HDD")
-            if ($ssd.Count -gt 0 -and $hdd.Count -eq 0) { return "SSD" }
-            if ($hdd.Count -gt 0 -and $ssd.Count -eq 0) { return "HDD" }
-            if ($ssd.Count -gt 0 -and $hdd.Count -gt 0) { return "Mixed" }
+function Action-DisableAggressiveServices {
+    Write-Log "Aggressive services disable selected." "Yellow"
+    Write-Log "WARNING: Disabling services can break Windows features (search, updates behavior, Xbox features, notifications). Use at your own risk." "Red"
+
+    $backup = @()
+    foreach ($s in $AggressiveServices) {
+        $start = Get-ServiceStartType -Name $s
+        if ($start) {
+            $backup += [pscustomobject]@{ Name = $s; StartMode = $start }
         }
-    } catch {}
-    return "Unknown"
-}
+    }
 
-function Get-SystemProfile {
-    $p = [ordered]@{ Caption="Unknown"; Build=""; Device="Desktop"; Storage="Unknown" }
     try {
-        $os = Get-CimInstance Win32_OperatingSystem
-        $p.Caption = $os.Caption
-        $p.Build   = $os.BuildNumber
-    } catch {}
-    if (Is-Laptop) { $p.Device = "Laptop" } else { $p.Device = "Desktop" }
-    $p.Storage = Get-StorageProfile
-    return $p
-}
-
-# =========================
-# Actions
-# =========================
-function Act-RestorePoint {
-    Write-Log "Creating restore point..." "Yellow"
-    if ($WhatIf) { Write-Log "WHATIF: would create restore point" "DarkYellow"; return }
-    try {
-        Checkpoint-Computer -Description "merybist optimizer restore point" -RestorePointType "Modify_Settings"
-        Write-Log "Restore point created." "Green"
+        $backup | ConvertTo-Json -Depth 4 | Set-Content -Path $SvcBackupPath -Encoding UTF8
+        Write-Log "Saved services backup to: $SvcBackupPath" "Green"
     } catch {
-        Write-Log ("Restore point failed: {0}" -f $_.Exception.Message) "DarkYellow"
+        Write-Log "Failed to save services backup. Restore may not work." "DarkYellow"
+    }
+
+    foreach ($s in $AggressiveServices) {
+        $ok = Set-ServiceStartType -Name $s -Mode "Disabled"
+        if ($ok) { Write-Log ("Disabled service: " + $s) "Green" }
+        else { Write-Log ("Skip/Failed: " + $s) "DarkYellow" }
     }
 }
 
-# Keep your пункт 6 exactly:
-function Act-RegistryBasic-Apply {
-    Write-Log "Applying registry performance tweaks (Basic)..." "Yellow"
-    Reg-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SubscribedContent-310093Enabled" 0
-    Reg-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SystemPaneSuggestionsEnabled" 0
-    Reg-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana" 0
-    Reg-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 0
-    Reg-Set "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" "DODownloadMode" 0
-    Reg-Set "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" "SearchOrderConfig" 0
-    Write-Log "Registry performance tweaks applied." "Green"
-}
-
-function Act-GameDVR-Off {
-    Write-Log "Disabling Game DVR and Captures..." "Yellow"
-    Reg-Set "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0
-    Reg-Set "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled" 0
-    Reg-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" "AllowGameDVR" 0
-    Reg-Set "HKCU:\SOFTWARE\Microsoft\GameBar" "ShowStartupPanel" 0
-    Write-Log "Game DVR disabled." "Green"
-}
-
-function Act-BackgroundApps-Off {
-    Write-Log "Disabling background apps..." "Yellow"
-    Reg-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" "GlobalUserDisabled" 1
-    Write-Log "Background apps disabled." "Green"
-}
-
-function Act-MouseAccel-Off {
-    Write-Log "Mouse acceleration OFF..." "Yellow"
-    Reg-Set "HKCU:\Control Panel\Mouse" "MouseSpeed" "0" ([Microsoft.Win32.RegistryValueKind]::String)
-    Reg-Set "HKCU:\Control Panel\Mouse" "MouseThreshold1" "0" ([Microsoft.Win32.RegistryValueKind]::String)
-    Reg-Set "HKCU:\Control Panel\Mouse" "MouseThreshold2" "0" ([Microsoft.Win32.RegistryValueKind]::String)
-    Write-Log "Mouse acceleration OFF applied." "Green"
-}
-
-function Act-Visual-Performance {
-    Write-Log "Visual effects -> Performance..." "Yellow"
-    Reg-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
-    Write-Log "Visual effects set to performance." "Green"
-}
-
-function Act-HAGS-Ask {
-    if (-not (Ask-YesNo "Enable HAGS (Hardware GPU Scheduling)? (can help or hurt)" "N")) { return }
-    $mode = Read-Host "Type: Default / On / Off"
-    if ($mode -ne "Default" -and $mode -ne "On" -and $mode -ne "Off") { $mode = "Default" }
-
-    Write-Log ("HAGS mode: {0}" -f $mode) "Yellow"
-    $path = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
-    if ($mode -eq "Default") {
-        Reg-Remove $path "HwSchMode"
-        Write-Log "HAGS set to Default." "Green"
-        return
-    }
-    $val = 1
-    if ($mode -eq "On") { $val = 2 }
-    if ($mode -eq "Off") { $val = 1 }
-    Reg-Set $path "HwSchMode" $val
-    Write-Log ("HAGS applied (HwSchMode={0}). Reboot recommended." -f $val) "Green"
-}
-
-function Act-PowerPlan-Perf {
-    $p = Get-SystemProfile
-    if ($p.Device -eq "Laptop") {
-        Write-Log "Laptop -> High performance power scheme." "Yellow"
-        if ($WhatIf) { Write-Log "WHATIF: would set SCHEME_MIN" "DarkYellow"; return }
-        try { powercfg -setactive SCHEME_MIN | Out-Null } catch {}
+function Action-RestoreAggressiveServices {
+    Write-Log "Restoring services from backup..." "Yellow"
+    if (-not (Test-Path $SvcBackupPath)) {
+        Write-Log "Backup not found: $SvcBackupPath" "Red"
         return
     }
 
-    Write-Log "Desktop -> Ultimate performance power scheme." "Yellow"
-    $ultimate = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-    if ($WhatIf) { Write-Log "WHATIF: would set Ultimate performance" "DarkYellow"; return }
+    $data = $null
+    try { $data = Get-Content $SvcBackupPath -Raw | ConvertFrom-Json } catch {}
+    if (-not $data) {
+        Write-Log "Backup file is invalid." "Red"
+        return
+    }
 
-    try {
-        $out = (powercfg -duplicatescheme $ultimate 2>$null)
-        $newGuid = $null
-        if ($out) {
-            $m = ($out | Out-String) -match "([0-9a-fA-F-]{36})"
-            if ($m) { $newGuid = $Matches[1] }
-        }
-        if ($newGuid) { powercfg -setactive $newGuid | Out-Null; Write-Log ("Ultimate active: {0}" -f $newGuid) "Green" }
-        else { powercfg -setactive SCHEME_MIN | Out-Null; Write-Log "Ultimate not created -> High performance set." "DarkYellow" }
-    } catch {
-        Write-Log ("Power plan failed: {0}" -f $_.Exception.Message) "DarkYellow"
+    foreach ($item in $data) {
+        $name = $item.Name
+        $mode = $item.StartMode
+        if (-not $name -or -not $mode) { continue }
+
+        # Map Win32 startmodes
+        $target = "Manual"
+        if ($mode -eq "Auto") { $target = "Automatic" }
+        elseif ($mode -eq "Manual") { $target = "Manual" }
+        elseif ($mode -eq "Disabled") { $target = "Disabled" }
+
+        $ok = Set-ServiceStartType -Name $name -Mode $target
+        if ($ok) { Write-Log ("Restored service: " + $name + " -> " + $target) "Green" }
+        else { Write-Log ("Failed restore: " + $name) "DarkYellow" }
     }
 }
 
-function Act-Defender-Off {
-    Write-Log "Disabling Windows Defender (policy + services best-effort)..." "Yellow"
-    Reg-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" "DisableAntiSpyware" 1
-    Reg-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" "DisableRoutinelyTakingAction" 1
-    Reg-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableRealtimeMonitoring" 1
-    Reg-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableBehaviorMonitoring" 1
-    Reg-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableIOAVProtection" 1
-    foreach ($s in @("WinDefend","WdNisSvc")) { Svc-Disable $s }
-    Write-Log "Defender disable applied. Reboot recommended." "Green"
+# -------------------------
+# Defender / SmartScreen / UAC
+# -------------------------
+function Action-DisableDefender {
+    Write-Log "Disabling Windows Defender (policy + services)..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" "DisableAntiSpyware" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableRealtimeMonitoring" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableBehaviorMonitoring" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableIOAVProtection" 1
+
+    foreach ($s in @("WinDefend","WdNisSvc","SecurityHealthService","wscsvc")) {
+        $ok = Set-ServiceStartType -Name $s -Mode "Disabled"
+        if ($ok) { Write-Log ("Disabled service: " + $s) "Green" }
+    }
+    Write-Log "Defender disable requested. Some Windows builds may ignore parts of this." "DarkYellow"
 }
 
-function Act-UAC-Off {
-    Write-Log "Disabling UAC..." "Yellow"
-    Reg-Set "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "EnableLUA" 0
+function Action-EnableDefender {
+    Write-Log "Enabling Windows Defender (policy + services)..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" "DisableAntiSpyware" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableRealtimeMonitoring" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableBehaviorMonitoring" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" "DisableIOAVProtection" 0
+
+    foreach ($s in @("WinDefend","WdNisSvc","SecurityHealthService","wscsvc")) {
+        $ok = Set-ServiceStartType -Name $s -Mode "Automatic"
+        if ($ok) { Write-Log ("Enabled service: " + $s) "Green" }
+    }
+}
+
+function Action-DisableSmartScreen {
+    Write-Log "Disabling SmartScreen..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "EnableSmartScreen" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "ShellSmartScreenLevel" "Off" ([Microsoft.Win32.RegistryValueKind]::String)
+    Write-Log "SmartScreen disabled." "Green"
+}
+
+function Action-EnableSmartScreen {
+    Write-Log "Enabling SmartScreen..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "EnableSmartScreen" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "ShellSmartScreenLevel" "Warn" ([Microsoft.Win32.RegistryValueKind]::String)
+    Write-Log "SmartScreen enabled." "Green"
+}
+
+function Action-DisableUAC {
+    Write-Log "Disabling UAC (reboot required)..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "EnableLUA" 0
     Write-Log "UAC disabled (reboot required)." "Green"
 }
 
-# =========================
-# Performance Services (disable "unneeded")
-# =========================
-$SERVICES_PERF_DISABLE = @(
-    "DiagTrack","dmwappushservice","SysMain","WSearch",
-    "XblAuthManager","XblGameSave","XboxNetApiSvc","XboxGipSvc",
-    "WMPNetworkSvc","MapsBroker","RemoteRegistry","WerSvc","Fax",
-    "WpnService","WwanSvc","workfolderssvc","WebClient","Wecsvc",
-    "WFDSConMgrSvc","WPDBusEnum","WiaRpc","ssh-agent"
-)
-
-# Aggressive extras (danger zone)
-$SERVICES_AGGRESSIVE_EXTRA = @(
-    "SecurityHealthService","wscsvc","Spooler","TermService","Themes"
-)
-
-function Act-Services-PerformanceOff {
-    Write-Log "Disabling performance services set..." "Yellow"
-    foreach ($s in $SERVICES_PERF_DISABLE) { Svc-Disable $s }
-    Write-Log "Performance services disabled." "Green"
+function Action-EnableUAC {
+    Write-Log "Enabling UAC (reboot required)..." "Yellow"
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "EnableLUA" 1
+    Write-Log "UAC enabled (reboot required)." "Green"
 }
 
-function Act-Services-AggressiveOff {
-    $ok = Confirm-Risky "AGGRESSIVE SERVICES" "May break Store/Updates/Security Center/Printing/RDP/UI themes."
-    if (-not $ok) { Write-Log "Aggressive services canceled." "DarkYellow"; return }
-
-    Write-Log "Disabling aggressive extra services..." "Yellow"
-    foreach ($s in $SERVICES_AGGRESSIVE_EXTRA) { Svc-Disable $s }
-    Write-Log "Aggressive services disabled." "Green"
+# -------------------------
+# Keep your Basic Registry Tweaks (Menu 6)
+# -------------------------
+function Action-RegistryPerformanceTweaks {
+    Write-Log "Applying registry performance tweaks (basic)..." "Yellow"
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SubscribedContent-310093Enabled" 0
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SystemPaneSuggestionsEnabled" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" "DODownloadMode" 0
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" "SearchOrderConfig" 0
+    Write-Log "Basic registry tweaks applied." "Green"
 }
 
-function Act-Services-Restore {
-    Write-Log "Restoring services (best-effort)..." "Yellow"
+function Action-RegistryRestoreDefaults {
+    Write-Log "Restoring registry defaults (basic)..." "Yellow"
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SubscribedContent-310093Enabled" 1
+    Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" "SystemPaneSuggestionsEnabled" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana" 1
+    Safe-SetReg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry" 3
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" "DODownloadMode" 3
+    Safe-SetReg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" "SearchOrderConfig" 1
+    Write-Log "Basic registry defaults restored." "Green"
+}
 
-    # restore to Manual first
-    foreach ($s in ($SERVICES_PERF_DISABLE + $SERVICES_AGGRESSIVE_EXTRA | Select-Object -Unique)) {
-        Svc-Enable $s "Manual"
+# -------------------------
+# Sparkle-based Tweaks (Apply/Unapply)
+# -------------------------
+
+function Tweak-SetWin32PrioritySeparation {
+    param([string]$Mode) # Apply / Unapply
+    if ($Mode -eq "Apply") {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" -Name "Win32PrioritySeparation" -Type DWord -Value 36
+        Write-Log "Win32PrioritySeparation set to 36." "Green"   # Sparkle apply :contentReference[oaicite:12]{index=12}
+    } else {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" -Name "Win32PrioritySeparation" -Type DWord -Value 2
+        Write-Log "Win32PrioritySeparation restored to 2." "Green" # Sparkle unapply :contentReference[oaicite:13]{index=13}
     }
-
-    # typical autos
-    Svc-Enable "WSearch" "Automatic"
-    Svc-Enable "SysMain" "Automatic"
-    Svc-Enable "Spooler" "Automatic"
-    Svc-Enable "Themes" "Automatic"
-    Svc-Enable "wscsvc" "Automatic"
-    Svc-Enable "SecurityHealthService" "Automatic"
-    Svc-Enable "TermService" "Manual"
-
-    Write-Log "Services restore done (best-effort). Reboot recommended." "Green"
 }
 
-# =========================
-# Auto optimize (single profile, interactive Y/N each step)
-# =========================
-function Auto-Optimize {
-    Write-Log "AUTO optimize: PERFORMANCE profile (interactive Y/N)" "Cyan"
+function Tweak-MenuShowDelayZero {
+    param([string]$Mode)
+    if ($Mode -eq "Apply") {
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Type String -Value "0"
+        Write-Log "MenuShowDelay set to 0." "Green"  # :contentReference[oaicite:14]{index=14}
+    } else {
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Type String -Value "400"
+        Write-Log "MenuShowDelay restored to 400." "Green"
+    }
+}
+
+function Tweak-DisableBackgroundStoreApps {
+    param([string]$Mode)
+    $path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications"
+    if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+    if ($Mode -eq "Apply") {
+        Set-ItemProperty -Path $path -Name "GlobalUserDisabled" -Type DWord -Value 1
+        Write-Log "Background MS Store apps disabled." "Green"   # :contentReference[oaicite:15]{index=15}
+    } else {
+        Set-ItemProperty -Path $path -Name "GlobalUserDisabled" -Type DWord -Value 0
+        Write-Log "Background MS Store apps restored." "Green"   # :contentReference[oaicite:16]{index=16}
+    }
+}
+
+function Tweak-EnableGameMode {
+    param([string]$Mode)
+    if ($Mode -eq "Apply") {
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\GameBar" -Name "AllowAutoGameMode" -Value 1
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\GameBar" -Name "AutoGameModeEnabled" -Value 1
+        Write-Log "Game Mode enabled." "Green" # :contentReference[oaicite:17]{index=17}
+    } else {
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\GameBar" -Name "AllowAutoGameMode" -Value 0
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\GameBar" -Name "AutoGameModeEnabled" -Value 0
+        Write-Log "Game Mode disabled." "Green" # :contentReference[oaicite:18]{index=18}
+    }
+}
+
+function Tweak-EnableHAGS {
+    param([string]$Mode)
+    $regPath = "HKLM:\System\CurrentControlSet\Control\GraphicsDrivers"
+    if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+    if ($Mode -eq "Apply") {
+        Set-ItemProperty -Path $regPath -Name "HwSchMode" -Value 2 -Type DWord
+        Write-Log "HAGS enabled (HwSchMode=2). Reboot may be required." "Green" # :contentReference[oaicite:19]{index=19}
+    } else {
+        Set-ItemProperty -Path $regPath -Name "HwSchMode" -Value 1 -Type DWord
+        Write-Log "HAGS disabled (HwSchMode=1). Reboot may be required." "Green" # :contentReference[oaicite:20]{index=20}
+    }
+}
+
+function Tweak-EnableWindowedGamesOptimization {
+    param([string]$Mode)
+    $regPath = "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences"
+    if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+    if ($Mode -eq "Apply") {
+        Set-ItemProperty -Path $regPath -Name "DirectXUserGlobalSettings" -Value "SwapEffectUpgradeEnable=1;"
+        Write-Log "Optimization for windowed games enabled." "Green" # :contentReference[oaicite:21]{index=21}
+    } else {
+        Safe-DelRegValue -Path $regPath -Name "DirectXUserGlobalSettings"
+        Write-Log "Optimization for windowed games removed." "Green" # :contentReference[oaicite:22]{index=22}
+    }
+}
+
+function Tweak-DisableFastStartup {
+    param([string]$Mode)
+    if ($Mode -eq "Apply") {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0
+        Write-Log "Fast Startup disabled (HiberbootEnabled=0)." "Green" # :contentReference[oaicite:23]{index=23}
+    } else {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 1
+        Write-Log "Fast Startup restored (HiberbootEnabled=1)." "Green"
+    }
+}
+
+function Tweak-DisableMouseAcceleration {
+    param([string]$Mode)
+    if ($Mode -eq "Apply") {
+        Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseSpeed" -Value "0"
+        Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "0"
+        Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "0"
+        Write-Log "Mouse acceleration disabled." "Green" # :contentReference[oaicite:24]{index=24}
+    } else {
+        Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseSpeed" -Value "1"
+        Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "6"
+        Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "10"
+        Write-Log "Mouse acceleration restored." "Green" # :contentReference[oaicite:25]{index=25}
+    }
+}
+
+function Tweak-DisableWifiSense {
+    param([string]$Mode)
+    if ($Mode -eq "Apply") {
+        Ensure-RegKey "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting"
+        Ensure-RegKey "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots"
+        Set-ItemProperty -Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting" -Name "Value" -Type DWord -Value 0
+        Set-ItemProperty -Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots" -Name "Value" -Type DWord -Value 0
+        Write-Log "Wi-Fi Sense disabled." "Green" # :contentReference[oaicite:26]{index=26}
+    } else {
+        Ensure-RegKey "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting"
+        Ensure-RegKey "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots"
+        Set-ItemProperty -Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting" -Name "Value" -Type DWord -Value 1
+        Set-ItemProperty -Path "HKLM:\Software\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots" -Name "Value" -Type DWord -Value 1
+        Write-Log "Wi-Fi Sense restored." "Green" # :contentReference[oaicite:27]{index=27}
+    }
+}
+
+function Tweak-DisableDynamicTick {
+    param([string]$Mode)
+    if ($Mode -eq "Apply") {
+        bcdedit /set disabledynamictick yes | Out-Null
+        Write-Log "Dynamic Ticking disabled. Reboot recommended." "Green" # :contentReference[oaicite:28]{index=28}
+    } else {
+        bcdedit /set disabledynamictick no | Out-Null
+        Write-Log "Dynamic Ticking restored. Reboot recommended." "Green" # :contentReference[oaicite:29]{index=29}
+    }
+}
+
+function Tweak-DisableGamebarOverlay {
+    param([string]$Mode)
     $p = Get-SystemProfile
-    Write-Log ("Detected: {0} | Build {1} | Device={2} | Storage={3}" -f $p.Caption, $p.Build, $p.Device, $p.Storage) "Gray"
-
-    if (Ask-YesNo "Create restore point before changes?" "Y") { Act-RestorePoint }
-
-    if (Ask-YesNo "Apply Registry Tweaks (Basic)?" "Y") { Act-RegistryBasic-Apply }
-
-    if (Ask-YesNo "Disable GameDVR/Captures?" "Y") { Act-GameDVR-Off }
-
-    if (Ask-YesNo "Disable background apps?" "Y") { Act-BackgroundApps-Off }
-
-    if (Ask-YesNo "Mouse acceleration OFF (FPS)?" "Y") { Act-MouseAccel-Off }
-
-    if (Ask-YesNo "Set Visual Effects to Performance?" "Y") { Act-Visual-Performance }
-
-    if (Ask-YesNo "Set performance power plan?" "Y") { Act-PowerPlan-Perf }
-
-    if (Ask-YesNo "Disable 'unneeded' services for performance?" "Y") { Act-Services-PerformanceOff }
-
-    if (Ask-YesNo "Apply AGGRESSIVE services too? (danger)" "N") { Act-Services-AggressiveOff }
-
-    # HAGS as optional
-    Act-HAGS-Ask
-
-    Write-Log "AUTO optimize complete. Reboot recommended." "Green"
-    Write-Log ("State saved: {0}" -f $stateFile) "Gray"
-}
-
-# =========================
-# Undo last run
-# =========================
-function Undo-Last {
-    $f = Get-LastStateFile
-    if (-not $f) { Write-Log "No state file found to undo." "DarkYellow"; return }
-    Write-Log ("UNDO using: {0}" -f $f.FullName) "Yellow"
-
-    $json = Get-Content $f.FullName -Raw -ErrorAction SilentlyContinue
-    if (-not $json) { Write-Log "Cannot read state file." "DarkYellow"; return }
-    $st = $json | ConvertFrom-Json
-
-    $arr = @($st.changes)
-    for ($i = $arr.Count - 1; $i -ge 0; $i--) {
-        $c = $arr[$i]
-
-        if ($c.type -eq "registry_set") {
-            $parts = $c.target -split "\\"
-            $name = $parts[-1]
-            $path = ($parts[0..($parts.Length-2)] -join "\")
-            $psPath = $path
-
-            if ($null -eq $c.before) {
-                if ($WhatIf) { Write-Log ("WHATIF undo: remove {0}\{1}" -f $psPath,$name) "DarkYellow" }
-                else { Reg-Remove $psPath $name }
-            } else {
-                $kind = $c.meta.kind
-                $rk = [Microsoft.Win32.RegistryValueKind]::$kind
-                if ($WhatIf) { Write-Log ("WHATIF undo: set {0}\{1}={2}" -f $psPath,$name,$c.before) "DarkYellow" }
-                else { Reg-Set $psPath $name $c.before $rk }
-            }
-        }
-        elseif ($c.type -eq "registry_remove") {
-            $parts = $c.target -split "\\"
-            $name = $parts[-1]
-            $path = ($parts[0..($parts.Length-2)] -join "\")
-            $psPath = $path
-            if ($null -ne $c.before) {
-                if ($WhatIf) { Write-Log ("WHATIF undo: set {0}\{1}={2}" -f $psPath,$name,$c.before) "DarkYellow" }
-                else { Reg-Set $psPath $name $c.before ([Microsoft.Win32.RegistryValueKind]::DWord) }
-            }
-        }
-        elseif ($c.type -eq "service") {
-            $svcName = $c.target
-            $startType = $c.before.startType
-            $startup = "Manual"
-            if ($startType -match "Automatic") { $startup = "Automatic" }
-            if ($WhatIf) { Write-Log ("WHATIF undo: restore service {0} startup={1}" -f $svcName,$startup) "DarkYellow" }
-            else { Svc-Enable $svcName $startup }
-        }
+    if (-not $p.HasWinget) {
+        Write-Log "winget not found. Cannot reliably apply/unapply this tweak." "DarkYellow"
+        return
     }
 
-    Write-Log "UNDO complete (best-effort). Reboot recommended." "Green"
+    if ($Mode -eq "Apply") {
+        # Sparkle warns X3D users; we cannot detect X3D reliably -> warn always.
+        Write-Log "WARNING: If you have an AMD X3D CPU, disabling Gamebar can hurt performance in some cases." "Red" # :contentReference[oaicite:30]{index=30}
+        try {
+            winget uninstall 9nzkpstsnw4p --silent --accept-source-agreements | Out-Null
+        } catch {}
+        try {
+            Get-AppxPackage Microsoft.XboxGamingOverlay | Remove-AppxPackage -ErrorAction Stop | Out-Null
+            Write-Log "XboxGamingOverlay removed." "Green" # :contentReference[oaicite:31]{index=31}
+        } catch {
+            Write-Log "Appx removal failed; winget may still have removed it." "DarkYellow"
+        }
+    } else {
+        try {
+            winget install 9NZKPSTSNW4P --source msstore --accept-source-agreements --accept-package-agreements | Out-Null
+            Write-Log "XboxGamingOverlay installed back." "Green" # :contentReference[oaicite:32]{index=32}
+        } catch {
+            Write-Log "Failed to reinstall XboxGamingOverlay via winget." "DarkYellow"
+        }
+    }
 }
 
-# =========================
-# Menu
-# =========================
-function Pause-Key {
+function Tweak-RemoveBingIntegration {
+    param([string]$Mode)
+    if ($Mode -eq "Apply") {
+        Get-AppxPackage *BingNews* | Remove-AppxPackage -ErrorAction SilentlyContinue | Out-Null
+        Get-AppxPackage *BingWeather* | Remove-AppxPackage -ErrorAction SilentlyContinue | Out-Null
+        Get-AppxPackage *BingFinance* | Remove-AppxPackage -ErrorAction SilentlyContinue | Out-Null
+        Get-AppxPackage *BingMaps* | Remove-AppxPackage -ErrorAction SilentlyContinue | Out-Null
+        Get-AppxPackage *BingSports* | Remove-AppxPackage -ErrorAction SilentlyContinue | Out-Null
+        # Disable web results in Windows Search (common approach)
+        Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "BingSearchEnabled" 0
+        Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "CortanaConsent" 0
+        Write-Log "Bing apps removed and Bing web search disabled in Search." "Green" # :contentReference[oaicite:33]{index=33}
+    } else {
+        # Unapply is not perfect without Store re-install; restore toggles
+        Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "BingSearchEnabled" 1
+        Safe-SetReg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "CortanaConsent" 1
+        Write-Log "Search toggles restored. Bing apps reinstall may require Microsoft Store." "DarkYellow" # :contentReference[oaicite:34]{index=34}
+    }
+}
+
+function Tweak-OptimizeNetworkSettings {
+    param([string]$Mode)
+    if ($Mode -eq "Apply") {
+        Write-Log "Applying network tweaks (netsh)..." "Yellow"  # Sparkle list :contentReference[oaicite:35]{index=35}
+        try { netsh int tcp set heuristics disabled | Out-Null } catch {}
+        try { netsh int tcp set supplemental template=internet congestionprovider=ctcp | Out-Null } catch {}
+        try { netsh int tcp set global rss=enabled | Out-Null } catch {}
+        try { netsh int tcp set global ecncapability=enabled | Out-Null } catch {}
+        try { netsh int tcp set global timestamps=disabled | Out-Null } catch {}
+        try { netsh int tcp set global fastopen=enabled | Out-Null } catch {}
+        try { netsh int tcp set global fastopenfallback=enabled | Out-Null } catch {}
+        try { netsh int tcp set supplemental template=custom icw=10 | Out-Null } catch {}
+
+        # MTU set - only if interface exists
+        $ifaces = @()
+        try { $ifaces = (Get-NetIPInterface | Select-Object -ExpandProperty InterfaceAlias -Unique) } catch {}
+        foreach ($name in @("Wi-Fi","Ethernet")) {
+            if ($ifaces -contains $name) {
+                try { netsh interface ipv4 set subinterface "$name" mtu=1500 store=persistent | Out-Null } catch {}
+            }
+        }
+
+        Write-Log "Network tweaks applied." "Green"
+    } else {
+        Write-Log "Restoring network defaults (partial)..." "Yellow"
+        try { netsh int tcp set heuristics enabled | Out-Null } catch {}
+        try { netsh int tcp set global rss=default | Out-Null } catch {}
+        try { netsh int tcp set global ecncapability=default | Out-Null } catch {}
+        try { netsh int tcp set global timestamps=default | Out-Null } catch {}
+        try { netsh int tcp set global fastopen=default | Out-Null } catch {}
+        Write-Log "Network defaults restored (partial)." "Green"
+    }
+}
+
+# -------------------------
+# Auto Optimize (asks y/n before every action)
+# -------------------------
+function Action-AutoOptimize {
+    $p = Get-SystemProfile
+    Write-Log ("Auto Optimize profile: " + $p.OS + " Build=" + $p.Build + " Device=" + $p.Device + " Storage=" + $p.Storage) "Cyan"
+
+    if (-not (Test-IsAdmin)) {
+        Write-Log "WARNING: Not running as Admin. Some tweaks will fail." "DarkYellow"
+    }
+
+    if (Prompt-YesNo -Question "Apply basic registry performance tweaks (Menu 6)?" -Default "Y") {
+        Action-RegistryPerformanceTweaks
+    }
+
+    if (Prompt-YesNo -Question "Set Win32PrioritySeparation for foreground performance?" -Default "Y") {
+        Tweak-SetWin32PrioritySeparation -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Set MenuShowDelay to 0 (snappier UI)?" -Default "Y") {
+        Tweak-MenuShowDelayZero -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Disable background activity for Microsoft Store apps?" -Default "Y") {
+        Tweak-DisableBackgroundStoreApps -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Enable Game Mode? (Test if better for your games)" -Default "Y") {
+        Tweak-EnableGameMode -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Enable HAGS (Hardware Accelerated GPU Scheduling)?" -Default "Y") {
+        Tweak-EnableHAGS -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Enable Optimization for Windowed Games?" -Default "Y") {
+        Tweak-EnableWindowedGamesOptimization -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Disable mouse acceleration (recommended for FPS)?" -Default "Y") {
+        Tweak-DisableMouseAcceleration -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Disable Wi-Fi Sense?" -Default "Y") {
+        Tweak-DisableWifiSense -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Disable Dynamic Ticking (can improve latency, uses more power)?" -Default "N") {
+        Tweak-DisableDynamicTick -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Disable Fast Startup (stability / clean boots)?" -Default "Y") {
+        Tweak-DisableFastStartup -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Apply network tweaks (netsh)?" -Default "N") {
+        Tweak-OptimizeNetworkSettings -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Disable Gamebar by removing XboxGamingOverlay? (WARNING for AMD X3D users)" -Default "N") {
+        Tweak-DisableGamebarOverlay -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Remove Bing apps and Bing web results from Search? (may require Store to restore apps)" -Default "N") {
+        Tweak-RemoveBingIntegration -Mode "Apply"
+    }
+
+    if (Prompt-YesNo -Question "Disable aggressive services set? (WARNING: can break features)" -Default "N") {
+        Action-DisableAggressiveServices
+    }
+
+    Write-Log "Auto Optimize complete. Reboot recommended." "Green"
+}
+
+# -------------------------
+# Menus
+# -------------------------
+function Pause-AnyKey {
     Write-Host ""
-    Write-Host "Press any key..." -ForegroundColor DarkGray
-    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    Write-Host "Press any key to continue..." -ForegroundColor DarkGray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
-function Status {
+function Action-ShowSystemInfo {
     $p = Get-SystemProfile
-    Write-Log "Status:" "Cyan"
-    Write-Log ("OS: {0} | Build {1} | Device={2} | Storage={3}" -f $p.Caption,$p.Build,$p.Device,$p.Storage) "Gray"
-    Write-Log ("State file current run: {0}" -f $stateFile) "DarkGray"
+    Write-Log "System Information:" "Cyan"
+    Write-Log ("OS: " + $p.OS) "White"
+    Write-Log ("Version: " + $p.Version + " Build: " + $p.Build) "White"
+    Write-Log ("Device: " + $p.Device + " Storage: " + $p.Storage) "White"
+    try {
+        $cpu = Get-CimInstance Win32_Processor
+        Write-Log ("CPU: " + $cpu.Name) "White"
+        Write-Log ("Cores: " + $cpu.NumberOfCores + " Logical: " + $cpu.NumberOfLogicalProcessors) "White"
+    } catch {}
+    try {
+        $mem = Get-CimInstance Win32_ComputerSystem
+        $ram = [math]::Round($mem.TotalPhysicalMemory / 1GB, 2)
+        Write-Log ("RAM: " + $ram + " GB") "White"
+    } catch {}
 }
 
-function Menu {
+function Show-MainMenu {
+    Clear-Host
+    Write-Host "-----------------------------------------------" -ForegroundColor Cyan
+    Write-Host " merybist Optimization Menu v3.0 (ASCII only)  " -ForegroundColor Cyan
+    Write-Host "-----------------------------------------------" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host " 1. System Information" -ForegroundColor White
+    Write-Host " 2. Defender / SmartScreen / UAC" -ForegroundColor Yellow
+    Write-Host " 3. Aggressive Services (Disable/Restore)" -ForegroundColor Red
+    Write-Host " 4. Registry Tweaks (Basic - keep)" -ForegroundColor Yellow
+    Write-Host " 5. Sparkle Tweaks (Apply/Unapply)" -ForegroundColor Magenta
+    Write-Host " 6. Auto Optimize (asks y/n for every change)" -ForegroundColor Green
+    Write-Host " 0. Exit" -ForegroundColor DarkRed
+    Write-Host ""
+}
+
+function Show-SecurityMenu {
     while ($true) {
         Clear-Host
-        Line
-        Write-Host "merybist Optimizer PRO (single performance profile)" -ForegroundColor Cyan
-        Line
+        Write-Host "Defender / SmartScreen / UAC" -ForegroundColor Yellow
         Write-Host ""
-        Write-Host " 1. Status"
-        Write-Host " 2. AUTO Optimize (asks Y/N per step)"
-        Write-Host " 3. Apply Registry Tweaks (Basic)"
-        Write-Host " 4. Disable GameDVR/Captures"
-        Write-Host " 5. Disable background apps"
-        Write-Host " 6. Mouse acceleration OFF"
-        Write-Host " 7. Visual effects Performance"
-        Write-Host " 8. Set performance power plan"
-        Write-Host " 9. Disable services (performance set)"
-        Write-Host " 10. Disable services (AGGRESSIVE extra - dangerous)"
-        Write-Host " 11. Restore services (best-effort)"
-        Write-Host " 12. Disable Defender"
-        Write-Host " 13. Disable UAC"
-        Write-Host " 14. HAGS (ask mode)"
-        Write-Host " 15. Create restore point"
-        Write-Host " 16. UNDO last run (rollback)"
-        Write-Host " 0. Exit"
+        Write-Host " 1. Disable Defender"
+        Write-Host " 2. Enable Defender"
+        Write-Host " 3. Disable SmartScreen"
+        Write-Host " 4. Enable SmartScreen"
+        Write-Host " 5. Disable UAC (reboot)"
+        Write-Host " 6. Enable UAC (reboot)"
+        Write-Host " 0. Back"
         Write-Host ""
-
-        $x = Read-Host "Select"
-        switch ($x) {
-            '1'  { Status; Pause-Key }
-            '2'  { Auto-Optimize; Pause-Key }
-            '3'  { Act-RegistryBasic-Apply; Pause-Key }
-            '4'  { Act-GameDVR-Off; Pause-Key }
-            '5'  { Act-BackgroundApps-Off; Pause-Key }
-            '6'  { Act-MouseAccel-Off; Pause-Key }
-            '7'  { Act-Visual-Performance; Pause-Key }
-            '8'  { Act-PowerPlan-Perf; Pause-Key }
-            '9'  { Act-Services-PerformanceOff; Pause-Key }
-            '10' { Act-Services-AggressiveOff; Pause-Key }
-            '11' { Act-Services-Restore; Pause-Key }
-            '12' { Act-Defender-Off; Pause-Key }
-            '13' { Act-UAC-Off; Pause-Key }
-            '14' { Act-HAGS-Ask; Pause-Key }
-            '15' { Act-RestorePoint; Pause-Key }
-            '16' { Undo-Last; Pause-Key }
-            '0'  { Write-Log "Exit." "Cyan"; return }
-            default { Write-Host "Invalid selection." -ForegroundColor Yellow; Start-Sleep 1 }
+        $c = Read-Host "Select"
+        switch ($c) {
+            "1" { Action-DisableDefender; Pause-AnyKey }
+            "2" { Action-EnableDefender; Pause-AnyKey }
+            "3" { Action-DisableSmartScreen; Pause-AnyKey }
+            "4" { Action-EnableSmartScreen; Pause-AnyKey }
+            "5" { Action-DisableUAC; Pause-AnyKey }
+            "6" { Action-EnableUAC; Pause-AnyKey }
+            "0" { return }
         }
     }
 }
 
-# =========================
-# Entrypoints
-# =========================
-if ($Undo) { Undo-Last; exit }
-if ($Auto) { Auto-Optimize; exit }
+function Show-ServicesMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Aggressive Services" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "WARNING: This can break Windows features. Use Restore if something breaks."
+        Write-Host ""
+        Write-Host " 1. Disable aggressive services (and create backup)"
+        Write-Host " 2. Restore services from backup"
+        Write-Host " 0. Back"
+        Write-Host ""
+        $c = Read-Host "Select"
+        switch ($c) {
+            "1" { Action-DisableAggressiveServices; Pause-AnyKey }
+            "2" { Action-RestoreAggressiveServices; Pause-AnyKey }
+            "0" { return }
+        }
+    }
+}
 
-Menu
+function Show-BasicRegistryMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Registry Tweaks (Basic - keep)" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host " 1. Apply basic performance tweaks"
+        Write-Host " 2. Restore defaults"
+        Write-Host " 0. Back"
+        Write-Host ""
+        $c = Read-Host "Select"
+        switch ($c) {
+            "1" { Action-RegistryPerformanceTweaks; Pause-AnyKey }
+            "2" { Action-RegistryRestoreDefaults; Pause-AnyKey }
+            "0" { return }
+        }
+    }
+}
+
+function Show-SparkleTweaksMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Sparkle Tweaks (Apply/Unapply)" -ForegroundColor Magenta
+        Write-Host ""
+        Write-Host " 1. Win32PrioritySeparation (Apply)"
+        Write-Host " 2. Win32PrioritySeparation (Unapply)"
+        Write-Host " 3. MenuShowDelay Zero (Apply)"
+        Write-Host " 4. MenuShowDelay (Unapply -> 400)"
+        Write-Host " 5. Disable background Store apps (Apply)"
+        Write-Host " 6. Disable background Store apps (Unapply)"
+        Write-Host " 7. Enable Game Mode (Apply)"
+        Write-Host " 8. Enable Game Mode (Unapply)"
+        Write-Host " 9. Enable HAGS (Apply)"
+        Write-Host "10. Enable HAGS (Unapply)"
+        Write-Host "11. Windowed Games Optimization (Apply)"
+        Write-Host "12. Windowed Games Optimization (Unapply)"
+        Write-Host "13. Disable Mouse Acceleration (Apply)"
+        Write-Host "14. Disable Mouse Acceleration (Unapply)"
+        Write-Host "15. Disable Wi-Fi Sense (Apply)"
+        Write-Host "16. Disable Wi-Fi Sense (Unapply)"
+        Write-Host "17. Disable Dynamic Ticking (Apply)"
+        Write-Host "18. Disable Dynamic Ticking (Unapply)"
+        Write-Host "19. Disable Fast Startup (Apply)"
+        Write-Host "20. Disable Fast Startup (Unapply)"
+        Write-Host "21. Optimize Network (Apply)"
+        Write-Host "22. Optimize Network (Unapply)"
+        Write-Host "23. Disable Gamebar Overlay (Apply) - needs winget, X3D warning"
+        Write-Host "24. Disable Gamebar Overlay (Unapply)"
+        Write-Host "25. Remove Bing Integration (Apply)"
+        Write-Host "26. Remove Bing Integration (Unapply)"
+        Write-Host " 0. Back"
+        Write-Host ""
+        $c = Read-Host "Select"
+        switch ($c) {
+            "1" { Tweak-SetWin32PrioritySeparation Apply; Pause-AnyKey }
+            "2" { Tweak-SetWin32PrioritySeparation Unapply; Pause-AnyKey }
+            "3" { Tweak-MenuShowDelayZero Apply; Pause-AnyKey }
+            "4" { Tweak-MenuShowDelayZero Unapply; Pause-AnyKey }
+            "5" { Tweak-DisableBackgroundStoreApps Apply; Pause-AnyKey }
+            "6" { Tweak-DisableBackgroundStoreApps Unapply; Pause-AnyKey }
+            "7" { Tweak-EnableGameMode Apply; Pause-AnyKey }
+            "8" { Tweak-EnableGameMode Unapply; Pause-AnyKey }
+            "9" { Tweak-EnableHAGS Apply; Pause-AnyKey }
+            "10" { Tweak-EnableHAGS Unapply; Pause-AnyKey }
+            "11" { Tweak-EnableWindowedGamesOptimization Apply; Pause-AnyKey }
+            "12" { Tweak-EnableWindowedGamesOptimization Unapply; Pause-AnyKey }
+            "13" { Tweak-DisableMouseAcceleration Apply; Pause-AnyKey }
+            "14" { Tweak-DisableMouseAcceleration Unapply; Pause-AnyKey }
+            "15" { Tweak-DisableWifiSense Apply; Pause-AnyKey }
+            "16" { Tweak-DisableWifiSense Unapply; Pause-AnyKey }
+            "17" { Tweak-DisableDynamicTick Apply; Pause-AnyKey }
+            "18" { Tweak-DisableDynamicTick Unapply; Pause-AnyKey }
+            "19" { Tweak-DisableFastStartup Apply; Pause-AnyKey }
+            "20" { Tweak-DisableFastStartup Unapply; Pause-AnyKey }
+            "21" { Tweak-OptimizeNetworkSettings Apply; Pause-AnyKey }
+            "22" { Tweak-OptimizeNetworkSettings Unapply; Pause-AnyKey }
+            "23" { Tweak-DisableGamebarOverlay Apply; Pause-AnyKey }
+            "24" { Tweak-DisableGamebarOverlay Unapply; Pause-AnyKey }
+            "25" { Tweak-RemoveBingIntegration Apply; Pause-AnyKey }
+            "26" { Tweak-RemoveBingIntegration Unapply; Pause-AnyKey }
+            "0" { return }
+        }
+    }
+}
+
+# -------------------------
+# Start
+# -------------------------
+Write-Log "=== Ultimate Windows Optimization by merybist v3.0 ===" "Cyan"
+if (-not (Test-IsAdmin)) {
+    Write-Log "NOTE: Run as Administrator for full effect." "DarkYellow"
+}
+
+while ($true) {
+    Show-MainMenu
+    $m = Read-Host "Select"
+    switch ($m) {
+        "1" { Action-ShowSystemInfo; Pause-AnyKey }
+        "2" { Show-SecurityMenu }
+        "3" { Show-ServicesMenu }
+        "4" { Show-BasicRegistryMenu }
+        "5" { Show-SparkleTweaksMenu }
+        "6" { Action-AutoOptimize; Pause-AnyKey }
+        "0" { Write-Log "Exit." "Cyan"; break }
+    }
+}
