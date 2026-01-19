@@ -81,9 +81,9 @@ $Categories = @(
             @{
                 Name = "Activate Windows & Office"
                 Url = "https://raw.githubusercontent.com/merybist/merybist-scripts/refs/heads/main/activate.cmd"
-                Args = ""
+                Args = "cmd.exe /c activate.cmd"
                 InstallPath = ""
-                Type = "cmd"
+                Type = "command"
             }
         )
     },
@@ -212,12 +212,6 @@ function Install-App {
         Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit", "-Command", "irm $($app.Url) | iex"
         return
     }
-
-    if ($app.Type -eq "cmd") {
-        Start-Process -FilePath "cmd.exe" -ArgumentList "-NoExit""
-        return
-    }
-
 
     $path = Join-Path $dir $file
 
