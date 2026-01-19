@@ -75,6 +75,20 @@ $Categories = @(
     },
 
     @{
+        Name = "Activate Windows & Office"
+        Protected = $false
+        Apps = @(
+            @{
+                Name = "Activate Windows & Office"
+                Url = "https://raw.githubusercontent.com/merybist/merybist-scripts/refs/heads/main/activate.cmd"
+                Args = ""
+                InstallPath = ""
+                Type = "command"
+            }
+        )
+    },
+
+    @{
         Name = "Optimization by merybist"
         Protected = $true
         PasswordHash = "25f06c7f42032ca027b5ae6b0d2d3b052ff6056ceec9b07be7e72874cc963783"
@@ -108,11 +122,11 @@ $Categories = @(
                 Url = "https://raw.githubusercontent.com/merybist/merybist-scripts/refs/heads/main/Soft/RemWinAi.ps1"
                 Args = ""
                 Type = "command"
-
             }
         )
     }
 )
+
 
 # =========================
 # UI functions
