@@ -83,7 +83,7 @@ $Categories = @(
                 Url = "https://raw.githubusercontent.com/merybist/merybist-scripts/refs/heads/main/activate.cmd"
                 Args = ""
                 InstallPath = ""
-                Type = "command"
+                Type = "cmd"
             }
         )
     },
@@ -210,6 +210,11 @@ function Install-App {
 
     if ($app.Type -eq "command") {
         Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit", "-Command", "irm $($app.Url) | iex"
+        return
+    }
+
+    if ($app.Type -eq "cmd") {
+        Start-Process -FilePath "cmd.exe" -ArgumentList "-NoExit""
         return
     }
 
