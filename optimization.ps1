@@ -405,6 +405,7 @@ function Tweak-EnableHAGS {
     }
 }
 
+<<<<<<< HEAD
 function Tweak-EnableWindowedGamesOptimization {
     param([string]$Mode)
     $regPath = "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences"
@@ -656,6 +657,9 @@ function Action-ShowSystemInfo {
         Write-Log ("RAM: " + $ram + " GB") "White"
     } catch {}
 }
+=======
+# ===== Menus =====
+>>>>>>> parent of 29b559b (Add system-aware auto-optimization, FPS boost, and dynamic tweaks for Win10/11 + HDD/SSD)
 
 function Show-MainMenu {
     Clear-Host
@@ -663,6 +667,7 @@ function Show-MainMenu {
     Write-Host " merybist Optimization Menu v3.0 (ASCII only)  " -ForegroundColor Cyan
     Write-Host "-----------------------------------------------" -ForegroundColor Cyan
     Write-Host ""
+<<<<<<< HEAD
     Write-Host " 1. System Information" -ForegroundColor White
     Write-Host " 2. Defender / SmartScreen / UAC" -ForegroundColor Yellow
     Write-Host " 3. Aggressive Services (Disable/Restore)" -ForegroundColor Red
@@ -670,6 +675,21 @@ function Show-MainMenu {
     Write-Host " 5. Sparkle Tweaks (Apply/Unapply)" -ForegroundColor Magenta
     Write-Host " 6. Auto Optimize (asks y/n for every change)" -ForegroundColor Green
     Write-Host " 0. Exit" -ForegroundColor DarkRed
+=======
+    Write-Host " 1.  System Information" -ForegroundColor White
+    Write-Host " 2.  Windows Defender | UAC" -ForegroundColor Yellow
+    Write-Host " 3.  Services Optimization" -ForegroundColor Yellow
+    Write-Host " 4.  Background Apps & GameDVR" -ForegroundColor Yellow
+    Write-Host " 5.  Visual Effects" -ForegroundColor Yellow
+    Write-Host " 6.  Registry Tweaks (Basic)" -ForegroundColor Yellow
+    Write-Host " 7.  Advanced Registry Tweaks" -ForegroundColor Magenta
+    Write-Host " 8.  Network Tweaks" -ForegroundColor Yellow
+    Write-Host " 9.  Cleanup" -ForegroundColor Yellow
+    Write-Host " 10. Power Plan" -ForegroundColor Yellow
+    Write-Host " 11. Restore Point" -ForegroundColor Yellow
+    Write-Host " 12. Status Summary" -ForegroundColor Yellow
+    Write-Host " 0.  Exit" -ForegroundColor Red
+>>>>>>> parent of 29b559b (Add system-aware auto-optimization, FPS boost, and dynamic tweaks for Win10/11 + HDD/SSD)
     Write-Host ""
 }
 
@@ -813,6 +833,7 @@ if (-not (Test-IsAdmin)) {
 
 while ($true) {
     Show-MainMenu
+<<<<<<< HEAD
     $m = Read-Host "Select"
     switch ($m) {
         "1" { Action-ShowSystemInfo; Pause-AnyKey }
@@ -822,5 +843,31 @@ while ($true) {
         "5" { Show-SparkleTweaksMenu }
         "6" { Action-AutoOptimize; Pause-AnyKey }
         "0" { Write-Log "Exit." "Cyan"; break }
+=======
+    $main = Read-Host "Select option"
+
+    switch ($main) {
+        '1' { Show-SystemInfoMenu }
+        '2' { Show-DefenderMenu }
+        '3' { Show-ServicesMenu }
+        '4' { Show-BackgroundMenu }
+        '5' { Show-VisualMenu }
+        '6' { Show-RegistryMenu }
+        '7' { Show-AdvancedTweaksMenu }
+        '8' { Show-NetworkMenu }
+        '9' { Show-CleanupMenu }
+        '10' { Show-PowerPlanMenu }
+        '11' { Show-RestoreMenu }
+        '12' { Show-StatusMenu }
+        '0' {
+            Write-Log "Exiting optimization menu. Thank you for using merybist optimizer v2.0!" "Cyan"
+            break
+        }
+        default {
+            Write-Host "Invalid selection." -ForegroundColor Yellow
+            Write-Host "`nPress any key to return..."
+            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        }
+>>>>>>> parent of 29b559b (Add system-aware auto-optimization, FPS boost, and dynamic tweaks for Win10/11 + HDD/SSD)
     }
 }
