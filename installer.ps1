@@ -23,7 +23,7 @@ $Categories = @(
             @{
                 Name = "Google Chrome"
                 Url  = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/ChromeSetup.exe"
-                Args = ""
+                Args = "null"
                 InstallPath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
             }
         )
@@ -36,7 +36,7 @@ $Categories = @(
             @{
                 Name = "Telegram"
                 Url  = "https://td.telegram.org/tx64/tsetup-x64.6.3.4.exe"
-                Args = ""
+                Args = "null"
                 InstallPath = "$env:APPDATA\Telegram Desktop\Telegram.exe"
             },
             @{
@@ -68,13 +68,13 @@ $Categories = @(
             @{
                 Name = "Scratch"
                 Url  = "https://downloads.scratch.mit.edu/desktop/Scratch%20Setup.exe"
-                Args = ""
+                Args = "null"
                 InstallPath = "C:\Program Files\Scratch 3\Scratch.exe"
             },
             @{
                 Name = "Thonny + Python"
                 Url  = "https://github.com/thonny/thonny/releases/download/v4.1.7/thonny-4.1.7.exe"
-                Args = ""
+                Args = "null"
                 InstallPath = "C:\Program Files\Thonny\thonny.exe"
             }
         )
@@ -87,7 +87,7 @@ $Categories = @(
             @{
                 Name = "Paint.NET"
                 Url  = "https://github.com/paintdotnet/release/releases/download/v5.1.11/paint.net.5.1.11.install.x64.zip"
-                Args = ""
+                Args = "null"
                 InstallPath = "C:\Program Files\paint.net\PaintDotNet.exe"
                 Type = "zip"
                 InstallerExe = "paint.net.5.1.11.install.x64.exe"
@@ -95,7 +95,7 @@ $Categories = @(
             @{
                 Name = "Inkscape"
                 Url  = "https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/dl/"
-                Args = ""
+                Args = "null"
                 InstallPath = "C:\Program Files\Inkscape\bin\inkscape.exe"
             }
         )
@@ -108,7 +108,7 @@ $Categories = @(
             @{
                 Name = "Audacity"
                 Url  = "https://github.com/audacity/audacity/releases/download/Audacity-3.7.7/audacity-win-3.7.7-64bit.exe"
-                Args = ""
+                Args = "$null"
                 InstallPath = "C:\Program Files\Audacity\audacity.exe"
             }
         )
@@ -121,7 +121,7 @@ $Categories = @(
             @{
                 Name = "CapCut"
                 Url  = "https://www.capcut.com/activity/download_pc"
-                InstallPath = ""
+                InstallPath = "null"
                 Type = "open"
             }
         )
@@ -167,31 +167,31 @@ $Categories = @(
             @{
                 Name = "WinRAR License Key"
                 Url  = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/rarreg.key"
-                Args = ""
+                Args = "null"
                 InstallPath = "C:\Program Files\WinRAR\rarreg.key"
             },
             @{
                 Name = "Optimization by merybist"
                 Url = "https://raw.githubusercontent.com/merybist/merybist-scripts/refs/heads/main/optimization.ps1"
-                Args = ""
+                Args = "null"
                 Type = "command"
             },
             @{
                 Name = "Sparkle"
                 Url = "https://raw.githubusercontent.com/Parcoil/Sparkle/v2/get.ps1"
-                Args = ""
+                Args = "null"
                 Type = "command"
             },
             @{
                 Name = "W10Tweaker"
                 Url = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/W10Tweaker.exe"
-                Args = ""
+                Args = "null"
                 InstallPath = "C:\"
             },
             @{
                 Name = "RemWinAi"
                 Url = "https://raw.githubusercontent.com/merybist/merybist-scripts/refs/heads/main/Soft/RemWinAi.ps1"
-                Args = ""
+                Args = "null"
                 Type = "command"
             }
         )
