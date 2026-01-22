@@ -62,6 +62,72 @@ $Categories = @(
     },
 
     @{
+        Name = "Education & Coding"
+        Protected = $false
+        Apps = @(
+            @{
+                Name = "Scratch"
+                Url  = "https://downloads.scratch.mit.edu/desktop/Scratch%20Setup.exe"
+                Args = ""
+                InstallPath = "C:\Program Files\Scratch 3\Scratch.exe"
+            },
+            @{
+                Name = "Thonny + Python"
+                Url  = "https://github.com/thonny/thonny/releases/download/v4.1.7/thonny-4.1.7.exe"
+                Args = ""
+                InstallPath = "C:\Program Files\Thonny\thonny.exe"
+            }
+        )
+    },
+
+    @{
+        Name = "Creative & Design"
+        Protected = $false
+        Apps = @(
+            @{
+                Name = "Paint.NET"
+                Url  = "https://github.com/paintdotnet/release/releases/download/v5.1.11/paint.net.5.1.11.install.x64.zip"
+                Args = ""
+                InstallPath = "C:\Program Files\paint.net\PaintDotNet.exe"
+                Type = "zip"
+                InstallerExe = "paint.net.5.1.11.install.x64.exe"
+            },
+            @{
+                Name = "Inkscape"
+                Url  = "https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/dl/"
+                Args = ""
+                InstallPath = "C:\Program Files\Inkscape\bin\inkscape.exe"
+            }
+        )
+    },
+
+    @{
+        Name = "Audio"
+        Protected = $false
+        Apps = @(
+            @{
+                Name = "Audacity"
+                Url  = "https://github.com/audacity/audacity/releases/download/Audacity-3.7.7/audacity-win-3.7.7-64bit.exe"
+                Args = ""
+                InstallPath = "C:\Program Files\Audacity\audacity.exe"
+            }
+        )
+    },
+
+    @{
+        Name = "Video"
+        Protected = $false
+        Apps = @(
+            @{
+                Name = "CapCut"
+                Url  = "https://www.capcut.com/activity/download_pc"
+                InstallPath = ""
+                Type = "open"
+            }
+        )
+    },
+
+    @{
         Name = "Utilities"
         Protected = $false
         Apps = @(
@@ -70,6 +136,12 @@ $Categories = @(
                 Url  = "https://github.com/merybist/merybist-scripts/raw/refs/heads/main/Soft/winrar.exe"
                 Args = "/S"
                 InstallPath = "C:\Program Files\WinRAR\WinRAR.exe"
+            },
+            @{
+                Name = "Notepad++"
+                Url  = "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9/npp.8.9.Installer.x64.exe"
+                Args = "/S"
+                InstallPath = "C:\Program Files\Notepad++\notepad++.exe"
             }
         )
     },
@@ -81,9 +153,8 @@ $Categories = @(
             @{
                 Name = "Activate Windows & Office"
                 Url = "https://raw.githubusercontent.com/merybist/merybist-scripts/refs/heads/main/activate.cmd"
-                Args = "cmd.exe /c activate.cmd"
                 InstallPath = ""
-                Type = "command"
+                Type = "cmd"
             }
         )
     },
@@ -101,7 +172,7 @@ $Categories = @(
             },
             @{
                 Name = "Optimization by merybist"
-                Url = "https://soft.merybist.pp.ua/merybist.ps1"
+                Url = "https://raw.githubusercontent.com/merybist/merybist-scripts/refs/heads/main/optimization.ps1"
                 Args = ""
                 Type = "command"
             },
@@ -208,12 +279,66 @@ function Install-App {
         $file = ($app.Name -replace '[^\w]', '') + ".exe"
     }
 
-    if ($app.Type -eq "command") {
-        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit", "-Command", "irm $($app.Url) | iex"
+    $path = Join-Path $dir $file
+
+    if ($app.Type -eq "cmd") {
+        $cmdDir = "C:\Windows\System32\merybist"
+        if (!(Test-Path $cmdDir)) {
+            New-Item $cmdDir -ItemType Directory | Out-Null
+            try { attrib +h $cmdDir } catch { }
+        }
+
+        if ($file -notmatch "\.(cmd|bat)$") {
+            $file = ($app.Name -replace '[^\w]', '') + ".cmd"
+        }
+
+        $path = Join-Path $cmdDir $file
+
+        if (!(Test-Path $path)) {
+            Write-Host "Downloading $($app.Name)..."
+            Start-BitsTransfer -Source $app.Url -Destination $path
+        }
+
+        $cmd = "call `"$path`""
+        Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $cmd -Wait
         return
     }
 
-    $path = Join-Path $dir $file
+    if ($app.Type -eq "open") {
+        Start-Process $app.Url
+        return
+    }
+
+    if ($app.Type -eq "zip") {
+        if (!(Test-Path $path)) {
+            Write-Host "Downloading $($app.Name)..."
+            Start-BitsTransfer -Source $app.Url -Destination $path
+        }
+
+        $extractDir = Join-Path $dir (($app.Name -replace '[^\w]', '') + "-zip")
+        if (!(Test-Path $extractDir)) { New-Item $extractDir -ItemType Directory | Out-Null }
+        Expand-Archive -Path $path -DestinationPath $extractDir -Force
+
+        $exe = $null
+        if ($app.InstallerExe) {
+            $exe = Join-Path $extractDir $app.InstallerExe
+        } else {
+            $exe = Get-ChildItem -Path $extractDir -Filter *.exe -Recurse | Select-Object -First 1
+            if ($exe) { $exe = $exe.FullName }
+        }
+
+        if ($exe -and (Test-Path $exe)) {
+            Start-Process $exe $app.Args -Wait
+        } else {
+            Write-Host "Installer not found inside zip." -ForegroundColor Red
+        }
+        return
+    }
+
+    if ($app.Type -eq "command") {
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-NoExit", "-Command", "irm $($app.Url) | iex"
+        return
+    }
 
     if (!(Test-Path $path)) {
         Write-Host "Downloading $($app.Name)..."
@@ -235,25 +360,30 @@ function Install-App {
 # =========================
 do {
     Show-CategoryMenu
-    $c = Read-Host "Select category"
+    $c = (Read-Host "Select category").Trim()
 
     if ($c -eq '0') { break }
 
-    if ($c -match '^\d+$' -and $c -le $Categories.Count) {
-        $cat = $Categories[[int]$c - 1]
+    $catIndex = 0
+    if ([int]::TryParse($c, [ref]$catIndex) -and $catIndex -ge 1 -and $catIndex -le $Categories.Count) {
+        $cat = $Categories[$catIndex - 1]
         if (-not (Check-CategoryAccess $cat)) { continue }
 
         do {
             Show-AppMenu $cat
-            $a = Read-Host "Select app"
+            $a = (Read-Host "Select app").Trim()
 
             if ($a -eq '0') { break }
 
-            if ($a -match '^\d+$' -and $a -le $cat.Apps.Count) {
-                Install-App $cat.Apps[[int]$a - 1]
+            $appIndex = 0
+            if ([int]::TryParse($a, [ref]$appIndex) -and $appIndex -ge 1 -and $appIndex -le $cat.Apps.Count) {
+                Install-App $cat.Apps[$appIndex - 1]
                 Write-Host "Press any key..."
                 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             }
         } while ($true)
+    } else {
+        Write-Host "Invalid category input: '$c'" -ForegroundColor Red
+        Start-Sleep 1
     }
 } while ($true)
