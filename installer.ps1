@@ -72,10 +72,16 @@ $Categories = @(
                 InstallPath = "C:\Program Files\Scratch 3\Scratch.exe"
             },
             @{
-                Name = "Thonny + Python"
+                Name = "Thonny"
                 Url  = "https://github.com/thonny/thonny/releases/download/v4.1.7/thonny-4.1.7.exe"
                 Args = ""
                 InstallPath = "C:\Program Files\Thonny\thonny.exe"
+            },
+            @{
+                Name = "Python 3.14"
+                Url  = "https://www.python.org/ftp/python/3.14.2/python-3.14.2-amd64.exe"
+                Args = ""
+                InstallPath = "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe"
             }
         )
     },
@@ -94,9 +100,9 @@ $Categories = @(
             },
             @{
                 Name = "Inkscape"
-                Url  = "https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/dl/"
+                Url  = "https://inkscape.org/gallery/item/58917/inkscape-1.4.3.msi"
                 Args = ""
-                InstallPath = "C:\Program Files\Inkscape\bin\inkscape.exe"
+                InstallPath = "C:\Program Files\Inkscape\bin\inkscape-1.4.3.msi"
             }
         )
     },
