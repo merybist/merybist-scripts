@@ -82,6 +82,12 @@ $Categories = @(
                 Url  = "https://www.python.org/ftp/python/3.14.2/python-3.14.2-amd64.exe"
                 Args = ""
                 InstallPath = "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe"
+            },
+            @{
+               Name = "SketchUp"
+               Url = "https://sketchup.trimble.com/sketchup/2026/SketchUpPro-exe"
+               Args = ""
+               InstallPath = "C:\Program Files\SketchUp"
             }
         )
     },
