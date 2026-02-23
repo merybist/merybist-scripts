@@ -299,17 +299,23 @@ function Draw {
         if ($isCursor) {
             Write-Host (" " * $W) -BackgroundColor DarkGray -NoNewline
             [Console]::SetCursorPosition(0, [Console]::CursorTop - 1)
-            Write-Host $box         -ForegroundColor (if ($isChecked) {"Green"} else {"Gray"}) -BackgroundColor DarkGray -NoNewline
-            Write-Host " $namePad " -ForegroundColor White     -BackgroundColor DarkGray -NoNewline
-            Write-Host $catPad      -ForegroundColor $catColor -BackgroundColor DarkGray -NoNewline
+        
+            $boxColor  = if ($isChecked) { "Green" } else { "Gray" }
+            $nameColor = if ($isChecked) { "White" } else { "Gray" }
+        
+            Write-Host $box         -ForegroundColor $boxColor  -BackgroundColor DarkGray -NoNewline
+            Write-Host " $namePad " -ForegroundColor $nameColor -BackgroundColor DarkGray -NoNewline
+            Write-Host $catPad      -ForegroundColor $catColor  -BackgroundColor DarkGray -NoNewline
             Write-Host ""
-        } else {
+        }
+        else {
+            $nameColor = if ($isChecked) { "White" } else { "Gray" }
+        
             Write-Host $box         -ForegroundColor $boxFg -NoNewline
-            $nameColor = if ($isChecked) { "White" } else { "Gray" } Write-Host " $namePad " -ForegroundColor $nameColor -NoNewline
+            Write-Host " $namePad " -ForegroundColor $nameColor -NoNewline
             Write-Host $catPad      -ForegroundColor $catColor -NoNewline
             Write-Host ""
         }
-    }
 
     # ── Status bar ──────────────────────────────────────────
     Write-Host ("─" * $W) -ForegroundColor DarkGray
