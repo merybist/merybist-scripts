@@ -196,25 +196,18 @@ $cursor    = 0
 $searchStr = ""
 
 # ════════════════════════════════════════════════════════════
-#  SEARCH  —  supports:
-#    "discord"          → name OR category contains "discord"
-#    "dev"              → name OR category contains "dev"
-#    "cat dev"          → category == "dev"   (exact)
-#    "cat:dev"          → category == "dev"
-#    "category gaming"  → category == "gaming"
+#  SEARCH
 # ════════════════════════════════════════════════════════════
 
 function Get-Filtered {
     if ($searchStr -eq "") { return $ALL_APPS }
     $q = $searchStr.ToLower().Trim()
 
-    # explicit category filter
     if ($q -match '^(?:category|cat:?)\s+(.+)$') {
         $catQ = $matches[1].Trim()
         return $ALL_APPS | Where-Object { $_.Cat.ToLower() -eq $catQ }
     }
 
-    # plain search: name OR category
     return $ALL_APPS | Where-Object {
         $_.Name.ToLower().Contains($q) -or $_.Cat.ToLower().Contains($q)
     }
@@ -237,7 +230,6 @@ function Draw {
     $scrollTop = [Math]::Min($scrollTop, [Math]::Max(0, $total - $listH))
 
     [Console]::SetCursorPosition(0, 0)
-    }
 
     # ── Title ───────────────────────────────────────────────
     $tl = "  merybist-scripts  •  Installer  "
@@ -300,10 +292,10 @@ function Draw {
         if ($isCursor) {
             Write-Host (" " * $W) -BackgroundColor DarkGray -NoNewline
             [Console]::SetCursorPosition(0, [Console]::CursorTop - 1)
-        
+
             $boxColor  = if ($isChecked) { "Green" } else { "Gray" }
             $nameColor = if ($isChecked) { "White" } else { "Gray" }
-        
+
             Write-Host $box         -ForegroundColor $boxColor  -BackgroundColor DarkGray -NoNewline
             Write-Host " $namePad " -ForegroundColor $nameColor -BackgroundColor DarkGray -NoNewline
             Write-Host $catPad      -ForegroundColor $catColor  -BackgroundColor DarkGray -NoNewline
@@ -311,12 +303,13 @@ function Draw {
         }
         else {
             $nameColor = if ($isChecked) { "White" } else { "Gray" }
-        
+
             Write-Host $box         -ForegroundColor $boxFg -NoNewline
             Write-Host " $namePad " -ForegroundColor $nameColor -NoNewline
             Write-Host $catPad      -ForegroundColor $catColor -NoNewline
             Write-Host ""
         }
+    }  # <-- closes the for loop
 
     # ── Status bar ──────────────────────────────────────────
     Write-Host ("─" * $W) -ForegroundColor DarkGray
@@ -329,7 +322,7 @@ function Draw {
     $sr = "$($cursor+1)/$total  $pct%  "
     Write-Host ($sl.PadRight($W - $sr.Length) + $sr) -ForegroundColor DarkGray -NoNewline
     Write-Host ""
-}
+}  # <-- closes the Draw function
 
 # ════════════════════════════════════════════════════════════
 #  INSTALL SCREEN
