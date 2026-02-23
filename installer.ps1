@@ -237,6 +237,7 @@ function Draw {
     $scrollTop = [Math]::Min($scrollTop, [Math]::Max(0, $total - $listH))
 
     [Console]::SetCursorPosition(0, 0)
+    }
 
     # ── Title ───────────────────────────────────────────────
     $tl = "  merybist-scripts  •  Installer  "
