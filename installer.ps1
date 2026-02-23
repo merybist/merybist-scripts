@@ -305,7 +305,7 @@ function Draw {
             Write-Host ""
         } else {
             Write-Host $box         -ForegroundColor $boxFg -NoNewline
-            Write-Host " $namePad " -ForegroundColor (if ($isChecked) {"White"} else {"Gray"}) -NoNewline
+            $nameColor = if ($isChecked) { "White" } else { "Gray" } Write-Host " $namePad " -ForegroundColor $nameColor -NoNewline
             Write-Host $catPad      -ForegroundColor $catColor -NoNewline
             Write-Host ""
         }
