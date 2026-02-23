@@ -1,12 +1,12 @@
 # ============================================================
-#  merybist-scripts — installer.ps1
+#  WinTools - installer.ps1
 #  TUI Installer: search by name or category
-#  github.com/merybist/merybist-scripts
+#  github.com/merybist/WinTools
 # ============================================================
 
 #Requires -RunAsAdministrator
 
-$Host.UI.RawUI.WindowTitle = "merybist-scripts — Installer"
+$Host.UI.RawUI.WindowTitle = "WinTools - Installer"
 [Console]::CursorVisible = $false
 
 # ════════════════════════════════════════════════════════════
