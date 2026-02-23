@@ -10,9 +10,8 @@ $Host.UI.RawUI.WindowTitle = "merybist-scripts — Installer"
 [Console]::CursorVisible = $false
 
 # ════════════════════════════════════════════════════════════
-#  APP DATABASE  (100+ apps, alphabetical)
+#  APP DATABASE
 # ════════════════════════════════════════════════════════════
-#  Categories: Browser | Chat | Design | Dev | Gaming | Media | Office | Security | Utils
 
 $ALL_APPS = @(
     # ── Browser ─────────────────────────────────────────────
@@ -25,7 +24,6 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="Tor Browser";            ID="TorProject.TorBrowser";                  Cat="Browser"  }
     [pscustomobject]@{ Name="Vivaldi";                ID="Vivaldi.Vivaldi";                        Cat="Browser"  }
     [pscustomobject]@{ Name="Waterfox";               ID="Waterfox.Waterfox";                      Cat="Browser"  }
-
     # ── Chat ────────────────────────────────────────────────
     [pscustomobject]@{ Name="Discord";                ID="Discord.Discord";                        Cat="Chat"     }
     [pscustomobject]@{ Name="Element";                ID="Element.Element";                        Cat="Chat"     }
@@ -38,7 +36,6 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="Viber";                  ID="Viber.Viber";                            Cat="Chat"     }
     [pscustomobject]@{ Name="WhatsApp";               ID="9NKSQGP7F2NH";                           Cat="Chat"     }
     [pscustomobject]@{ Name="Zoom";                   ID="Zoom.Zoom";                              Cat="Chat"     }
-
     # ── Design ──────────────────────────────────────────────
     [pscustomobject]@{ Name="Blender";                ID="BlenderFoundation.Blender";              Cat="Design"   }
     [pscustomobject]@{ Name="DaVinci Resolve";        ID="Blackmagic.DaVinciResolve";              Cat="Design"   }
@@ -52,7 +49,6 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="ShareX";                 ID="ShareX.ShareX";                          Cat="Design"   }
     [pscustomobject]@{ Name="Storyboarder";           ID="wonderunit.Storyboarder";                Cat="Design"   }
     [pscustomobject]@{ Name="Vectr";                  ID="Vectr.Vectr";                            Cat="Design"   }
-
     # ── Dev ─────────────────────────────────────────────────
     [pscustomobject]@{ Name="Android Studio";         ID="Google.AndroidStudio";                   Cat="Dev"      }
     [pscustomobject]@{ Name="Dbeaver";                ID="dbeaver.dbeaver";                        Cat="Dev"      }
@@ -78,7 +74,6 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="Visual Studio 2022 Community"; ID="Microsoft.VisualStudio.2022.Community"; Cat="Dev" }
     [pscustomobject]@{ Name="Windows Terminal";       ID="Microsoft.WindowsTerminal";              Cat="Dev"      }
     [pscustomobject]@{ Name="WinSCP";                 ID="WinSCP.WinSCP";                          Cat="Dev"      }
-
     # ── Gaming ──────────────────────────────────────────────
     [pscustomobject]@{ Name="Battle.net";             ID="Blizzard.BattleNet";                     Cat="Gaming"   }
     [pscustomobject]@{ Name="Cemu (Wii U)";           ID="Cemu.Cemu";                              Cat="Gaming"   }
@@ -98,7 +93,6 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="Steam";                  ID="Valve.Steam";                            Cat="Gaming"   }
     [pscustomobject]@{ Name="Ubisoft Connect";        ID="Ubisoft.Connect";                        Cat="Gaming"   }
     [pscustomobject]@{ Name="Xbox";                   ID="9MV0B5HZVK9Z";                           Cat="Gaming"   }
-
     # ── Media ───────────────────────────────────────────────
     [pscustomobject]@{ Name="Audacity";               ID="Audacity.Audacity";                      Cat="Media"    }
     [pscustomobject]@{ Name="Clementine";             ID="Clementine-Player.Clementine";           Cat="Media"    }
@@ -118,7 +112,6 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="VLC";                    ID="VideoLAN.VLC";                           Cat="Media"    }
     [pscustomobject]@{ Name="Winamp";                 ID="Winamp.Winamp";                          Cat="Media"    }
     [pscustomobject]@{ Name="YouTube Music";          ID="th-ch.YouTubeMusic";                     Cat="Media"    }
-
     # ── Office ──────────────────────────────────────────────
     [pscustomobject]@{ Name="Bitwarden";              ID="Bitwarden.Bitwarden";                    Cat="Office"   }
     [pscustomobject]@{ Name="CherryTree";             ID="giuspen.cherrytree";                     Cat="Office"   }
@@ -134,7 +127,6 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="Thunderbird";            ID="Mozilla.Thunderbird";                    Cat="Office"   }
     [pscustomobject]@{ Name="Todoist";                ID="Doist.Todoist";                          Cat="Office"   }
     [pscustomobject]@{ Name="Zotero";                 ID="Zotero.Zotero";                          Cat="Office"   }
-
     # ── Security ────────────────────────────────────────────
     [pscustomobject]@{ Name="Bitwarden";              ID="Bitwarden.Bitwarden";                    Cat="Security" }
     [pscustomobject]@{ Name="KeePassXC";              ID="KeePassXCTeam.KeePassXC";               Cat="Security" }
@@ -145,7 +137,6 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="Veracrypt";              ID="IDRIX.VeraCrypt";                        Cat="Security" }
     [pscustomobject]@{ Name="Wireshark";              ID="WiresharkFoundation.Wireshark";          Cat="Security" }
     [pscustomobject]@{ Name="WireGuard";              ID="WireGuard.WireGuard";                    Cat="Security" }
-
     # ── Utils ───────────────────────────────────────────────
     [pscustomobject]@{ Name="7-Zip";                  ID="7zip.7zip";                              Cat="Utils"    }
     [pscustomobject]@{ Name="Autoruns";               ID="Microsoft.Sysinternals.Autoruns";        Cat="Utils"    }
@@ -171,26 +162,37 @@ $ALL_APPS = @(
     [pscustomobject]@{ Name="WizTree";                ID="AntibodySoftware.WizTree";               Cat="Utils"    }
 ) | Sort-Object Name
 
-# ─── Category colors ────────────────────────────────────────
-$CAT_COLORS = @{
-    Browser  = "Cyan"
-    Chat     = "Magenta"
-    Design   = "Yellow"
-    Dev      = "Green"
-    Gaming   = "Red"
-    Media    = "Blue"
-    Office   = "White"
-    Security = "DarkYellow"
-    Utils    = "DarkCyan"
+# ════════════════════════════════════════════════════════════
+#  ANSI COLOR MAP  — raw escape codes, zero Write-Host overhead
+# ════════════════════════════════════════════════════════════
+$ESC   = [char]27
+$RESET = "$ESC[0m"
+
+$FG = @{
+    Black       = "$ESC[30m"; DarkRed     = "$ESC[31m"; DarkGreen   = "$ESC[32m"
+    DarkYellow  = "$ESC[33m"; DarkBlue    = "$ESC[34m"; DarkMagenta = "$ESC[35m"
+    DarkCyan    = "$ESC[36m"; Gray        = "$ESC[37m"; DarkGray    = "$ESC[90m"
+    Red         = "$ESC[91m"; Green       = "$ESC[92m"; Yellow      = "$ESC[93m"
+    Blue        = "$ESC[94m"; Magenta     = "$ESC[95m"; Cyan        = "$ESC[96m"
+    White       = "$ESC[97m"
+}
+$BG = @{
+    Cyan     = "$ESC[46m"
+    DarkBlue = "$ESC[44m"
+    DarkGray = "$ESC[100m"
 }
 
-# ─── Category legend (shown in header) ──────────────────────
-$CAT_LEGEND = "Browser · Chat · Design · Dev · Gaming · Media · Office · Security · Utils"
+$CAT_FG = @{
+    Browser  = $FG.Cyan;    Chat     = $FG.Magenta; Design   = $FG.Yellow
+    Dev      = $FG.Green;   Gaming   = $FG.Red;     Media    = $FG.Blue
+    Office   = $FG.White;   Security = $FG.DarkYellow; Utils = $FG.DarkCyan
+}
+
+$CAT_LEGEND = "Browser * Chat * Design * Dev * Gaming * Media * Office * Security * Utils"
 
 # ════════════════════════════════════════════════════════════
 #  STATE
 # ════════════════════════════════════════════════════════════
-
 $checked   = [System.Collections.Generic.HashSet[int]]::new()
 $cursor    = 0
 $searchStr = ""
@@ -198,25 +200,22 @@ $searchStr = ""
 # ════════════════════════════════════════════════════════════
 #  SEARCH
 # ════════════════════════════════════════════════════════════
-
 function Get-Filtered {
     if ($searchStr -eq "") { return $ALL_APPS }
     $q = $searchStr.ToLower().Trim()
-
     if ($q -match '^(?:category|cat:?)\s+(.+)$') {
         $catQ = $matches[1].Trim()
         return $ALL_APPS | Where-Object { $_.Cat.ToLower() -eq $catQ }
     }
-
     return $ALL_APPS | Where-Object {
         $_.Name.ToLower().Contains($q) -or $_.Cat.ToLower().Contains($q)
     }
 }
 
 # ════════════════════════════════════════════════════════════
-#  DRAW
+#  DRAW  — builds entire frame in a StringBuilder, then ONE Console::Write
+#          eliminates flicker and is ~10x faster than per-line Write-Host
 # ════════════════════════════════════════════════════════════
-
 function Draw {
     param($filtered)
 
@@ -229,105 +228,90 @@ function Draw {
     $scrollTop = [Math]::Max(0, $cursor - $half)
     $scrollTop = [Math]::Min($scrollTop, [Math]::Max(0, $total - $listH))
 
-    [Console]::SetCursorPosition(0, 0)
+    # Pre-allocate buffer
+    $sb = [System.Text.StringBuilder]::new($W * ($H + 2) * 8)
 
-    # ── Title ───────────────────────────────────────────────
-    $tl = "  merybist-scripts  •  Installer  "
-    $tr = "  F5 update all   Esc exit  "
-    Write-Host ($tl + (" " * [Math]::Max(1,$W-$tl.Length-$tr.Length)) + $tr).PadRight($W) `
-        -ForegroundColor Black -BackgroundColor Cyan -NoNewline
-    Write-Host ""
+    # Move to top-left (no Clear-Host = no flicker)
+    [void]$sb.Append("$ESC[H")
+
+    # ── Title bar ───────────────────────────────────────────
+    $tl  = "  merybist-scripts  *  Installer  "
+    $tr  = "  F5=update-all   Esc=exit  "
+    $gap = [Math]::Max(1, $W - $tl.Length - $tr.Length)
+    $titleLine = ($tl + (" " * $gap) + $tr).PadRight($W)
+    [void]$sb.Append("$($BG.Cyan)$($FG.Black)${titleLine}$RESET`n")
 
     # ── Search bar ──────────────────────────────────────────
-    $hasSrch  = $searchStr.Length -gt 0
-    $srchText = "  🔍  $searchStr▌"
-    $srchHint = "  type name or category  •  cat:dev  cat:gaming  •  ↑↓ Space Tab Enter  "
-    $srchLine = $srchText + (" " * [Math]::Max(1,$W-$srchText.Length-$srchHint.Length)) + $srchHint
-
-    if ($hasSrch) {
-        Write-Host $srchLine.PadRight($W) -ForegroundColor White -BackgroundColor DarkBlue -NoNewline
+    $srchText = "  [?]  ${searchStr}> "
+    $srchHint = "  name or category  |  cat:dev  cat:gaming  |  arrows Space Tab Enter  "
+    $gap2     = [Math]::Max(1, $W - $srchText.Length - $srchHint.Length)
+    $srchLine = ($srchText + (" " * $gap2) + $srchHint).PadRight($W)
+    if ($searchStr.Length -gt 0) {
+        [void]$sb.Append("$($BG.DarkBlue)$($FG.White)${srchLine}$RESET`n")
     } else {
-        Write-Host $srchLine.PadRight($W) -ForegroundColor DarkGray -BackgroundColor Black -NoNewline
+        [void]$sb.Append("$($FG.DarkGray)${srchLine}$RESET`n")
     }
-    Write-Host ""
 
-    # ── Category legend ─────────────────────────────────────
-    $legendLine = "  " + $CAT_LEGEND
-    Write-Host $legendLine.PadRight($W) -ForegroundColor DarkGray -NoNewline
-    Write-Host ""
+    # ── Legend ──────────────────────────────────────────────
+    [void]$sb.Append("$($FG.DarkGray)  $($CAT_LEGEND.PadRight($W - 2))$RESET`n")
 
     # ── Column headers ──────────────────────────────────────
     $catW  = 10
     $nameW = $W - $catW - 7
-    Write-Host ("     " + "NAME".PadRight($nameW) + "CATEGORY  ").PadRight($W) `
-        -ForegroundColor DarkGray -NoNewline
-    Write-Host ""
-
-    Write-Host ("─" * $W) -ForegroundColor DarkGray
+    $hdr   = ("     " + "NAME".PadRight($nameW) + "CATEGORY  ").PadRight($W)
+    [void]$sb.Append("$($FG.DarkGray)${hdr}$RESET`n")
+    [void]$sb.Append("$($FG.DarkGray)$("─" * $W)$RESET`n")
 
     # ── App rows ────────────────────────────────────────────
     for ($row = 0; $row -lt $listH; $row++) {
         $i = $scrollTop + $row
 
         if ($i -ge $total) {
-            Write-Host (" " * $W)
+            [void]$sb.Append("$ESC[2K`n")
             continue
         }
 
         $app       = $filtered[$i]
         $isChecked = $checked.Contains($i)
         $isCursor  = ($i -eq $cursor)
-        $catColor  = if ($CAT_COLORS[$app.Cat]) { $CAT_COLORS[$app.Cat] } else { "Gray" }
+        $catFg     = if ($CAT_FG[$app.Cat]) { $CAT_FG[$app.Cat] } else { $FG.Gray }
 
-        $box   = if ($isChecked) { " ◉ " } else { " ○ " }
-        $boxFg = if ($isChecked) { "Green" } else { "DarkGray" }
-
-        $maxName  = $W - $catW - 7
-        $dispName = if ($app.Name.Length -gt $maxName) {
-            $app.Name.Substring(0, $maxName-1) + "…"
-        } else { $app.Name }
-        $namePad = $dispName.PadRight($maxName)
-        $catPad  = ("[" + $app.Cat + "]").PadRight($catW)
+        $box      = if ($isChecked) { " [*] " } else { " [ ] " }
+        $dispName = if ($app.Name.Length -gt $nameW) { $app.Name.Substring(0,$nameW-1) + "~" } else { $app.Name }
+        $namePad  = $dispName.PadRight($nameW)
+        $catPad   = ("[" + $app.Cat + "]").PadRight($catW)
 
         if ($isCursor) {
-            Write-Host (" " * $W) -BackgroundColor DarkGray -NoNewline
-            [Console]::SetCursorPosition(0, [Console]::CursorTop - 1)
-
-            $boxColor  = if ($isChecked) { "Green" } else { "Gray" }
-            $nameColor = if ($isChecked) { "White" } else { "Gray" }
-
-            Write-Host $box         -ForegroundColor $boxColor  -BackgroundColor DarkGray -NoNewline
-            Write-Host " $namePad " -ForegroundColor $nameColor -BackgroundColor DarkGray -NoNewline
-            Write-Host $catPad      -ForegroundColor $catColor  -BackgroundColor DarkGray -NoNewline
-            Write-Host ""
+            $bg     = $BG.DarkGray
+            $boxFg  = if ($isChecked) { $FG.Green } else { $FG.Gray }
+            $nameFg = if ($isChecked) { $FG.White } else { $FG.Gray }
+            [void]$sb.Append("${bg}${boxFg}${box}${nameFg} ${namePad} ${catFg}${catPad}$RESET`n")
+        } else {
+            $boxFg  = if ($isChecked) { $FG.Green } else { $FG.DarkGray }
+            $nameFg = if ($isChecked) { $FG.White } else { $FG.Gray }
+            [void]$sb.Append("${boxFg}${box}${nameFg} ${namePad} ${catFg}${catPad}$RESET`n")
         }
-        else {
-            $nameColor = if ($isChecked) { "White" } else { "Gray" }
-
-            Write-Host $box         -ForegroundColor $boxFg -NoNewline
-            Write-Host " $namePad " -ForegroundColor $nameColor -NoNewline
-            Write-Host $catPad      -ForegroundColor $catColor -NoNewline
-            Write-Host ""
-        }
-    }  # <-- closes the for loop
+    }
 
     # ── Status bar ──────────────────────────────────────────
-    Write-Host ("─" * $W) -ForegroundColor DarkGray
+    [void]$sb.Append("$($FG.DarkGray)$("─" * $W)$RESET`n")
 
     $selCnt = $checked.Count
-    $pct    = if ($total -le $listH -or $total -eq 0) { 100 } else {
+    $pct = if ($total -le $listH -or $total -eq 0) { 100 } else {
         [int](($scrollTop / ([Math]::Max(1, $total - $listH))) * 100)
     }
     $sl = "  $total shown   $selCnt selected   Enter=install selected (or current)"
     $sr = "$($cursor+1)/$total  $pct%  "
-    Write-Host ($sl.PadRight($W - $sr.Length) + $sr) -ForegroundColor DarkGray -NoNewline
-    Write-Host ""
-}  # <-- closes the Draw function
+    $statusLine = $sl.PadRight($W - $sr.Length) + $sr
+    [void]$sb.Append("$($FG.DarkGray)${statusLine}$RESET")
+
+    # ONE write call — renders entire frame atomically, no flicker
+    [Console]::Write($sb.ToString())
+}
 
 # ════════════════════════════════════════════════════════════
 #  INSTALL SCREEN
 # ════════════════════════════════════════════════════════════
-
 function Run-Install {
     param($toInstall)
 
@@ -336,43 +320,37 @@ function Run-Install {
 
     $W     = [Console]::WindowWidth
     $total = $toInstall.Count
-    $done  = 0; $skipped = 0; $failed = 0
-    $i     = 0
+    $done  = 0; $skipped = 0; $failed = 0; $i = 0
 
-    Write-Host ""
-    Write-Host ("─" * $W) -ForegroundColor DarkGray
-    Write-Host "  Installing $total app(s)…" -ForegroundColor Cyan
-    Write-Host ("─" * $W) -ForegroundColor DarkGray
-    Write-Host ""
+    [Console]::Write("`n$($FG.DarkGray)$("─" * $W)$RESET`n")
+    [Console]::Write("  $($FG.Cyan)Installing $total app(s)...$RESET`n")
+    [Console]::Write("$($FG.DarkGray)$("─" * $W)$RESET`n`n")
 
     foreach ($app in $toInstall) {
         $i++
-        $pct    = [int](($i / $total) * 100)
+        $pct   = [int](($i / $total) * 100)
         $filled = [int]($pct / 4)
-        $bar    = ("█" * $filled).PadRight(25, "░")
-        $cc     = if ($CAT_COLORS[$app.Cat]) { $CAT_COLORS[$app.Cat] } else { "Gray" }
+        $bar   = ("=" * $filled).PadRight(25, "-")
+        $catFg = if ($CAT_FG[$app.Cat]) { $CAT_FG[$app.Cat] } else { $FG.Gray }
 
-        Write-Host "  [$i/$total] " -ForegroundColor DarkGray -NoNewline
-        Write-Host $app.Name        -ForegroundColor White    -NoNewline
-        Write-Host "  [$($app.Cat)]" -ForegroundColor $cc
-        Write-Host "  [$bar] $pct%" -ForegroundColor Cyan
+        [Console]::Write("  $($FG.DarkGray)[$i/$total] $($FG.White)$($app.Name)  $catFg[$($app.Cat)]$RESET`n")
+        [Console]::Write("  $($FG.Cyan)[$bar] $pct%$RESET`n")
 
         winget install --id $app.ID --silent `
             --accept-package-agreements `
             --accept-source-agreements 2>&1 | Out-Null
 
         switch ($LASTEXITCODE) {
-            0            { $done++;    Write-Host "  ✔ Installed`n"        -ForegroundColor Green  }
-            -1978335189  { $skipped++; Write-Host "  ○ Already installed`n" -ForegroundColor Yellow }
-            -1978335215  { $skipped++; Write-Host "  ○ Already installed`n" -ForegroundColor Yellow }
-            default      { $failed++;  Write-Host "  ✘ Failed (code $LASTEXITCODE)`n" -ForegroundColor Red }
+            0           { $done++;    [Console]::Write("  $($FG.Green)+ Installed$RESET`n`n") }
+            -1978335189 { $skipped++; [Console]::Write("  $($FG.Yellow)o Already installed$RESET`n`n") }
+            -1978335215 { $skipped++; [Console]::Write("  $($FG.Yellow)o Already installed$RESET`n`n") }
+            default     { $failed++;  [Console]::Write("  $($FG.Red)x Failed (code $LASTEXITCODE)$RESET`n`n") }
         }
     }
 
-    Write-Host ("─" * $W) -ForegroundColor DarkGray
-    Write-Host "  ✔ $done installed   ○ $skipped skipped   ✘ $failed failed" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "  Press any key to go back…" -ForegroundColor DarkGray
+    [Console]::Write("$($FG.DarkGray)$("─" * $W)$RESET`n")
+    [Console]::Write("  $($FG.Cyan)+ $done installed   o $skipped skipped   x $failed failed$RESET`n`n")
+    [Console]::Write("  $($FG.DarkGray)Press any key to go back...$RESET`n")
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     [Console]::CursorVisible = $false
     Clear-Host
@@ -381,7 +359,6 @@ function Run-Install {
 # ════════════════════════════════════════════════════════════
 #  WINGET CHECK
 # ════════════════════════════════════════════════════════════
-
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     [Console]::CursorVisible = $true
     Write-Host "`n  [!] winget not found." -ForegroundColor Red
@@ -392,15 +369,14 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
 # ════════════════════════════════════════════════════════════
 #  MAIN LOOP
 # ════════════════════════════════════════════════════════════
-
 Clear-Host
 
 while ($true) {
     $filtered = @(Get-Filtered)
 
-    if ($filtered.Count -eq 0)              { $cursor = 0 }
-    elseif ($cursor -ge $filtered.Count)    { $cursor = $filtered.Count - 1 }
-    elseif ($cursor -lt 0)                  { $cursor = 0 }
+    if     ($filtered.Count -eq 0)           { $cursor = 0 }
+    elseif ($cursor -ge $filtered.Count)     { $cursor = $filtered.Count - 1 }
+    elseif ($cursor -lt 0)                   { $cursor = 0 }
 
     Draw $filtered
 
@@ -409,27 +385,22 @@ while ($true) {
     $ch  = $key.Character
 
     switch ($vk) {
-        40 { if ($cursor -lt $filtered.Count-1) { $cursor++ } }   # ↓
-        38 { if ($cursor -gt 0) { $cursor-- } }                   # ↑
-        34 { $cursor = [Math]::Min($cursor+10, [Math]::Max(0,$filtered.Count-1)) } # PgDn
-        33 { $cursor = [Math]::Max($cursor-10, 0) }               # PgUp
-        36 { $cursor = 0 }                                        # Home
-        35 { $cursor = [Math]::Max(0,$filtered.Count-1) }         # End
+        40 { if ($cursor -lt $filtered.Count-1) { $cursor++ } }
+        38 { if ($cursor -gt 0) { $cursor-- } }
+        34 { $cursor = [Math]::Min($cursor+10, [Math]::Max(0,$filtered.Count-1)) }
+        33 { $cursor = [Math]::Max($cursor-10, 0) }
+        36 { $cursor = 0 }
+        35 { $cursor = [Math]::Max(0,$filtered.Count-1) }
 
-        # Space — toggle check
-        32 {
+        32 {   # Space — toggle check
             if ($checked.Contains($cursor)) { $checked.Remove($cursor) | Out-Null }
             else { $checked.Add($cursor) | Out-Null }
         }
-
-        # Tab — select all / deselect all visible
-        9 {
+        9 {    # Tab — select/deselect all visible
             if ($checked.Count -gt 0) { $checked.Clear() }
             else { for ($idx=0; $idx -lt $filtered.Count; $idx++) { $checked.Add($idx) | Out-Null } }
         }
-
-        # Enter — install
-        13 {
+        13 {   # Enter — install
             $toInstall = @()
             if ($checked.Count -gt 0) {
                 foreach ($idx in ($checked | Sort-Object)) {
@@ -438,7 +409,6 @@ while ($true) {
             } elseif ($filtered.Count -gt 0) {
                 $toInstall = @($filtered[$cursor])
             }
-
             if ($toInstall.Count -gt 0) {
                 Run-Install $toInstall
                 $checked.Clear()
@@ -446,17 +416,13 @@ while ($true) {
                 $cursor    = 0
             }
         }
-
-        # Backspace
-        8 {
+        8 {    # Backspace
             if ($searchStr.Length -gt 0) {
                 $searchStr = $searchStr.Substring(0, $searchStr.Length-1)
                 $cursor = 0
             }
         }
-
-        # Escape — clear search → exit
-        27 {
+        27 {   # Escape — clear search or exit
             if ($searchStr -ne "") { $searchStr = ""; $cursor = 0 }
             else {
                 [Console]::CursorVisible = $true
@@ -465,21 +431,17 @@ while ($true) {
                 exit
             }
         }
-
-        # F5 — update all
-        116 {
+        116 {  # F5 — update all
             [Console]::CursorVisible = $true
             Clear-Host
-            Write-Host "`n  Updating all installed apps via winget…`n" -ForegroundColor Cyan
+            Write-Host "`n  Updating all installed apps via winget...`n" -ForegroundColor Cyan
             winget upgrade --all --silent --accept-package-agreements --accept-source-agreements
-            Write-Host "`n  Done! Press any key…" -ForegroundColor Green
+            Write-Host "`n  Done! Press any key..." -ForegroundColor Green
             $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             [Console]::CursorVisible = $false
             Clear-Host
         }
-
         default {
-            # Printable char → search
             if ($ch -ge ' ' -and $ch -le '~') {
                 $searchStr += $ch
                 $cursor     = 0
