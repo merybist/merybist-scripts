@@ -1,31 +1,30 @@
 # ============================================================
-#  merybist-scripts — optimization.ps1
+#  WinTools — optimization.ps1
 #  Windows performance, privacy & UI tweaks
 #  github.com/merybist/merybist-scripts
 # ============================================================
 
 #Requires -RunAsAdministrator
 
-$Host.UI.RawUI.WindowTitle = "merybist-scripts — Optimizer"
+$Host.UI.RawUI.WindowTitle = "WinTools — Optimizer"
 [Console]::CursorVisible = $true
 
 # ════════════════════════════════════════════════════════════
 #  HELPERS
 # ════════════════════════════════════════════════════════════
 
-function Write-Step  { param($msg) Write-Host "  ► $msg" -ForegroundColor Cyan }
-function Write-OK    { param($msg) Write-Host "  ✔ $msg" -ForegroundColor Green }
-function Write-Warn  { param($msg) Write-Host "  ⚠ $msg" -ForegroundColor Yellow }
-function Write-Sub   { param($msg) Write-Host "    · $msg" -ForegroundColor DarkGray }
-function Write-Div   { Write-Host ("  " + ("─" * ([Console]::WindowWidth - 4))) -ForegroundColor DarkGray }
+function Write-Step  { param($msg) Write-Host "  > $msg" -ForegroundColor Cyan }
+function Write-OK    { param($msg) Write-Host "  + $msg" -ForegroundColor Green }
+function Write-Warn  { param($msg) Write-Host "  ! $msg" -ForegroundColor Yellow }
+function Write-Sub   { param($msg) Write-Host "    . $msg" -ForegroundColor DarkGray }
+function Write-Div   { Write-Host ("  " + ("-" * ([Console]::WindowWidth - 4))) -ForegroundColor DarkGray }
 
 function Pause-Back {
     Write-Host ""
-    Write-Host "  Press any key to return…" -ForegroundColor DarkGray
+    Write-Host "  Press any key to return..." -ForegroundColor DarkGray
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
-# Safe registry write — creates missing keys automatically
 function Set-Reg {
     param(
         [string]$Path,
@@ -37,21 +36,20 @@ function Set-Reg {
     Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -ErrorAction SilentlyContinue
 }
 
-# Registry backup before any changes
 function Backup-Registry {
     $stamp = Get-Date -Format "yyyy-MM-dd_HH-mm"
     $out   = "$env:USERPROFILE\Desktop\reg_backup_$stamp.reg"
-    Write-Step "Backing up registry to Desktop ($out)…"
+    Write-Step "Backing up registry to Desktop ($out)..."
     reg export HKLM $out /y 2>$null | Out-Null
     if (Test-Path $out) { Write-OK "Backup saved" }
-    else                { Write-Warn "Backup failed — proceeding anyway" }
+    else                { Write-Warn "Backup failed -- proceeding anyway" }
 }
 
 function Show-Banner {
     Clear-Host
     $W = [Console]::WindowWidth
     Write-Host ""
-    $left  = "  merybist-scripts  •  Optimizer  "
+    $left  = "  merybist-scripts  *  Optimizer  "
     $right = "  Windows 10 / 11  "
     Write-Host ($left + (" " * [Math]::Max(1, $W - $left.Length - $right.Length)) + $right).PadRight($W) `
         -ForegroundColor Black -BackgroundColor Cyan
@@ -64,10 +62,9 @@ function Show-Banner {
 
 function Optimize-Performance {
     Show-Banner
-    Write-Host "  ⚡ Performance Tweaks`n" -ForegroundColor Cyan
+    Write-Host "  [PERF] Performance Tweaks`n" -ForegroundColor Cyan
 
-    # ── Power plan
-    Write-Step "Setting power plan to Ultimate Performance…"
+    Write-Step "Setting power plan to Ultimate Performance..."
     $out  = powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>&1
     $guid = [regex]::Match("$out", '[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}').Value
     if ($guid) {
@@ -78,87 +75,65 @@ function Optimize-Performance {
         Write-OK "High Performance plan activated (Ultimate not available on this edition)"
     }
 
-    # ── SvcHostSplitThresholdInKB
-    # Windows 10 1703+ splits svchost per-service when RAM >= 3.5 GB,
-    # causing 80+ svchost processes. Setting threshold = total RAM forces
-    # grouping again, reducing process overhead.
-    Write-Step "Tuning SvcHostSplitThresholdInKB to RAM size…"
+    Write-Step "Tuning SvcHostSplitThresholdInKB to RAM size..."
     $ramKB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1KB)
     Set-Reg "HKLM:\SYSTEM\CurrentControlSet\Control" "SvcHostSplitThresholdInKB" $ramKB
     Write-OK "SvcHostSplitThresholdInKB set to $ramKB KB  (~$([math]::Round($ramKB/1MB,1)) GB RAM detected)"
-    Write-Sub "Reduces svchost.exe process count — takes effect after reboot"
+    Write-Sub "Reduces svchost.exe process count -- takes effect after reboot"
 
-    # ── CPU foreground priority
-    Write-Step "Prioritizing foreground app CPU scheduling…"
+    Write-Step "Prioritizing foreground app CPU scheduling..."
     Set-Reg "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 26
     Write-OK "Win32PrioritySeparation = 26  (foreground apps get more CPU quanta)"
 
-    # ── SystemResponsiveness
-    # Controls how much CPU the multimedia scheduler (MMCSS) reserves for background tasks.
-    # Default 20%. Setting to 10% gives more headroom to active apps.
-    Write-Step "Setting SystemResponsiveness to 10%…"
+    Write-Step "Setting SystemResponsiveness to 10%..."
     Set-Reg "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness" 10
     Write-OK "SystemResponsiveness = 10  (default: 20, lower = more CPU to foreground)"
 
-    # ── Disable SysMain (Superfetch)
-    Write-Step "Disabling SysMain (Superfetch)…"
+    Write-Step "Disabling SysMain (Superfetch)..."
     Stop-Service -Name SysMain -Force -ErrorAction SilentlyContinue
     Set-Service  -Name SysMain -StartupType Disabled -ErrorAction SilentlyContinue
     Write-OK "SysMain disabled  (not needed on SSD)"
 
-    # ── Windows Search Indexer → manual
-    Write-Step "Setting Windows Search Indexer to manual start…"
+    Write-Step "Setting Windows Search Indexer to manual start..."
     Set-Service -Name WSearch -StartupType Manual -ErrorAction SilentlyContinue
     Write-OK "WSearch set to manual"
 
-    # ── Disable Fast Startup (can cause issues with dual-boot / Windows Update)
-    Write-Step "Disabling Fast Startup…"
+    Write-Step "Disabling Fast Startup..."
     Set-Reg "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" "HiberbootEnabled" 0
     Write-OK "Fast Startup disabled"
 
-    # ── Disable Hibernate (frees pagefile.sys + hiberfile.sys disk space)
-    Write-Step "Disabling Hibernate…"
+    Write-Step "Disabling Hibernate..."
     powercfg /hibernate off 2>$null
     Write-OK "Hibernate disabled  (frees disk space equal to RAM size)"
 
-    # ── Disable Power Throttling
-    # Windows throttles CPU for background apps to save power.
-    # Disabling it ensures consistent performance for all processes.
-    Write-Step "Disabling Power Throttling…"
+    Write-Step "Disabling Power Throttling..."
     Set-Reg "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThrottlingOff" 1
     Write-OK "Power Throttling disabled"
 
-    # ── Disable Xbox Game DVR
-    Write-Step "Disabling Xbox Game DVR & Game Bar…"
+    Write-Step "Disabling Xbox Game DVR & Game Bar..."
     Set-Reg "HKCU:\System\GameConfigStore"                       "GameDVR_Enabled"            0
     Set-Reg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" "AllowGameDVR"               0
     Set-Reg "HKCU:\Software\Microsoft\GameBar"                   "UseNexusForGameBarEnabled"  0
     Write-OK "Game DVR and Game Bar disabled"
 
-    # ── Reduce visual effects
-    Write-Step "Reducing visual effects…"
+    Write-Step "Reducing visual effects..."
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting"  2
     Set-Reg "HKCU:\Control Panel\Desktop\WindowMetrics"                               "MinAnimate"       "0" "String"
     Set-Reg "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"      "EnableTransparency" 0
     Write-OK "Visual effects set to performance mode, transparency disabled"
 
-    # ── WaitToKillServiceTimeout
-    # When shutting down, Windows waits this many ms for services to stop.
-    # Reducing from 5000 → 2000 makes shutdown faster.
-    Write-Step "Reducing WaitToKillServiceTimeout…"
+    Write-Step "Reducing WaitToKillServiceTimeout..."
     Set-Reg "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "2000" "String"
     Set-Reg "HKCU:\Control Panel\Desktop"            "WaitToKillAppTimeout"     "2000" "String"
     Set-Reg "HKCU:\Control Panel\Desktop"            "HungAppTimeout"           "3000" "String"
     Write-OK "Shutdown timeouts reduced  (service: 2s, app: 2s, hung: 3s)"
 
-    # ── Startup delay
-    # Windows delays startup items by default. Setting to 0 launches them immediately.
-    Write-Step "Removing startup apps delay…"
+    Write-Step "Removing startup apps delay..."
     Set-Reg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Serialize" "StartupDelayInMSec" 0
     Write-OK "Startup delay removed"
 
     Write-Div
-    Write-OK "All performance tweaks applied — reboot recommended"
+    Write-OK "All performance tweaks applied -- reboot recommended"
     Pause-Back
 }
 
@@ -168,55 +143,55 @@ function Optimize-Performance {
 
 function Optimize-Privacy {
     Show-Banner
-    Write-Host "  🔒 Privacy Tweaks`n" -ForegroundColor Cyan
+    Write-Host "  [PRIV] Privacy Tweaks`n" -ForegroundColor Cyan
 
-    Write-Step "Disabling Windows Telemetry…"
+    Write-Step "Disabling Windows Telemetry..."
     Set-Reg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"              "AllowTelemetry"  0
     Set-Reg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection" "AllowTelemetry" 0
     Write-OK "Telemetry disabled"
 
-    Write-Step "Disabling Advertising ID…"
+    Write-Step "Disabling Advertising ID..."
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" "Enabled" 0
     Write-OK "Advertising ID disabled"
 
-    Write-Step "Disabling Cortana…"
+    Write-Step "Disabling Cortana..."
     Set-Reg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortana"          0
     Set-Reg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" "AllowCortanaAboveLock" 0
     Write-OK "Cortana disabled"
 
-    Write-Step "Disabling Activity History & Timeline…"
+    Write-Step "Disabling Activity History & Timeline..."
     Set-Reg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "EnableActivityFeed"    0
     Set-Reg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "PublishUserActivities" 0
     Set-Reg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" "UploadUserActivities"  0
     Write-OK "Activity History disabled"
 
-    Write-Step "Disabling Location tracking…"
+    Write-Step "Disabling Location tracking..."
     Set-Reg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" "Value" "Deny" "String"
     Write-OK "Location tracking disabled"
 
-    Write-Step "Denying app access to Camera & Microphone…"
+    Write-Step "Denying app access to Camera & Microphone..."
     Set-Reg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam"     "Value" "Deny" "String"
     Set-Reg "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone" "Value" "Deny" "String"
-    Write-Warn "Camera/Mic blocked for all apps — re-enable in Settings if needed"
+    Write-Warn "Camera/Mic blocked for all apps -- re-enable in Settings if needed"
 
-    Write-Step "Disabling Feedback & Diagnostics…"
+    Write-Step "Disabling Feedback & Diagnostics..."
     Set-Reg "HKCU:\Software\Microsoft\Siuf\Rules" "NumberOfSIUFInPeriod" 0
     Set-Reg "HKCU:\Software\Microsoft\Siuf\Rules" "PeriodInNanoSeconds"  0
     Write-OK "Feedback prompts disabled"
 
-    Write-Step "Disabling Tailored Experiences…"
+    Write-Step "Disabling Tailored Experiences..."
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Privacy" "TailoredExperiencesWithDiagnosticDataEnabled" 0
     Write-OK "Tailored experiences disabled"
 
-    Write-Step "Disabling app launch tracking…"
+    Write-Step "Disabling app launch tracking..."
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "Start_TrackProgs" 0
     Write-OK "App launch tracking disabled"
 
-    Write-Step "Disabling Windows Error Reporting…"
+    Write-Step "Disabling Windows Error Reporting..."
     Set-Reg "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" "Disabled" 1
     Write-OK "Error Reporting disabled"
 
-    Write-Step "Disabling Remote Assistance…"
+    Write-Step "Disabling Remote Assistance..."
     Set-Reg "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance" "fAllowToGetHelp" 0
     Write-OK "Remote Assistance disabled"
 
@@ -231,7 +206,7 @@ function Optimize-Privacy {
 
 function Optimize-Services {
     Show-Banner
-    Write-Host "  🚀 Startup & Services Cleanup`n" -ForegroundColor Cyan
+    Write-Host "  [SVC] Startup & Services Cleanup`n" -ForegroundColor Cyan
 
     $services = [ordered]@{
         "DiagTrack"        = "Connected User Experiences & Telemetry"
@@ -253,13 +228,13 @@ function Optimize-Services {
         "WSearch"          = "Windows Search Indexer"
     }
 
-    Write-Step "Disabling $($services.Count) unnecessary services…`n"
+    Write-Step "Disabling $($services.Count) unnecessary services...`n"
 
     foreach ($svc in $services.GetEnumerator()) {
         Stop-Service -Name $svc.Key -Force -ErrorAction SilentlyContinue
         Set-Service  -Name $svc.Key -StartupType Disabled -ErrorAction SilentlyContinue
         $exists = Get-Service -Name $svc.Key -ErrorAction SilentlyContinue
-        $label  = ("    – " + $svc.Key).PadRight(26)
+        $label  = ("    - " + $svc.Key).PadRight(26)
         if ($exists) {
             Write-Host "$label" -NoNewline -ForegroundColor DarkGray
             Write-Host "disabled   " -NoNewline -ForegroundColor Green
@@ -282,7 +257,7 @@ function Optimize-Services {
 
 function Clean-Junk {
     Show-Banner
-    Write-Host "  🗑  Junk File Cleaner`n" -ForegroundColor Cyan
+    Write-Host "  [JUNK] Junk File Cleaner`n" -ForegroundColor Cyan
 
     $paths = [ordered]@{
         "User Temp"          = $env:TEMP
@@ -300,23 +275,28 @@ function Clean-Junk {
 
     foreach ($p in $paths.GetEnumerator()) {
         if (-not (Test-Path $p.Value)) { continue }
-        Write-Step "$($p.Key)…"
+        Write-Step "$($p.Key)..."
         $before = (Get-ChildItem $p.Value -Recurse -Force -ErrorAction SilentlyContinue |
                    Measure-Object -Property Length -Sum).Sum
         Get-ChildItem -Path $p.Value -Recurse -Force -ErrorAction SilentlyContinue |
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         $after = (Get-ChildItem $p.Value -Recurse -Force -ErrorAction SilentlyContinue |
                   Measure-Object -Property Length -Sum).Sum
-        $freed  = [Math]::Round((($before ?? 0) - ($after ?? 0)) / 1MB, 1)
+
+        # PS5.1 compatible null check (no ?? operator)
+        $beforeVal = if ($before) { $before } else { 0 }
+        $afterVal  = if ($after)  { $after  } else { 0 }
+        $freed     = [Math]::Round(($beforeVal - $afterVal) / 1MB, 1)
+
         $totalFreed += $freed
         Write-OK "Freed ~$freed MB"
     }
 
-    Write-Step "Emptying Recycle Bin…"
+    Write-Step "Emptying Recycle Bin..."
     Clear-RecycleBin -Force -ErrorAction SilentlyContinue
     Write-OK "Recycle Bin emptied"
 
-    Write-Step "Running Windows Disk Cleanup silently…"
+    Write-Step "Running Windows Disk Cleanup silently..."
     $sageSet  = 64
     $regBase  = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches"
     @(
@@ -345,22 +325,17 @@ function Clean-Junk {
 
 function Optimize-Network {
     Show-Banner
-    Write-Host "  🌐 Network Tweaks`n" -ForegroundColor Cyan
+    Write-Host "  [NET] Network Tweaks`n" -ForegroundColor Cyan
 
-    # ── Disable MMCSS network throttling
-    Write-Step "Disabling network throttling (MMCSS)…"
+    Write-Step "Disabling network throttling (MMCSS)..."
     Set-Reg "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" 0xFFFFFFFF
     Write-OK "NetworkThrottlingIndex = 0xFFFFFFFF  (throttling disabled)"
 
-    # ── IRPStackSize
-    # I/O Request Packet Stack Size — how many simultaneous I/O buffers
-    # the network stack can handle. Default 15. 32 is safe and faster.
-    Write-Step "Increasing IRPStackSize for better network throughput…"
+    Write-Step "Increasing IRPStackSize for better network throughput..."
     Set-Reg "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" "IRPStackSize" 32
     Write-OK "IRPStackSize = 32  (default: 15, max safe: 32)"
     Write-Sub "More simultaneous I/O buffers = better file/network throughput"
 
-    # ── DNS picker
     Write-Host ""
     Write-Host "  Choose DNS provider:" -ForegroundColor White
     Write-Host "  [1] Cloudflare   1.1.1.1 / 1.0.0.1       (fast + privacy)" -ForegroundColor Gray
@@ -377,28 +352,25 @@ function Optimize-Network {
         "3" { $primary = "9.9.9.9";  $secondary = "149.112.112.112";  $label = "Quad9" }
     }
     if ($primary) {
-        Write-Step "Setting DNS to $label…"
+        Write-Step "Setting DNS to $label..."
         Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | ForEach-Object {
             Set-DnsClientServerAddress -InterfaceIndex $_.IfIndex `
                 -ServerAddresses @($primary, $secondary) -ErrorAction SilentlyContinue
         }
-        Write-OK "DNS → $primary / $secondary  ($label)"
+        Write-OK "DNS set to $primary / $secondary  ($label)"
     }
 
-    # ── Flush DNS
-    Write-Step "Flushing DNS cache…"
+    Write-Step "Flushing DNS cache..."
     ipconfig /flushdns | Out-Null
     Write-OK "DNS cache flushed"
 
-    # ── TCP tweaks
-    Write-Step "Applying TCP tweaks (Nagle off, auto-tuning, SACK)…"
+    Write-Step "Applying TCP tweaks (Nagle off, auto-tuning, SACK)..."
     $tcpGlobal = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
-    Set-Reg $tcpGlobal "TCPNoDelay"       1   # Disable Nagle at global level
-    Set-Reg $tcpGlobal "TcpAckFrequency"  1   # ACK immediately
-    Set-Reg $tcpGlobal "Tcp1323Opts"      1   # Enable SACK + large windows
-    Set-Reg $tcpGlobal "DefaultTTL"       64  # Standard TTL
+    Set-Reg $tcpGlobal "TCPNoDelay"       1
+    Set-Reg $tcpGlobal "TcpAckFrequency"  1
+    Set-Reg $tcpGlobal "Tcp1323Opts"      1
+    Set-Reg $tcpGlobal "DefaultTTL"       64
 
-    # Also set per-interface
     $ifPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
     Get-ChildItem $ifPath -ErrorAction SilentlyContinue | ForEach-Object {
         Set-Reg $_.PSPath "TcpAckFrequency" 1
@@ -410,8 +382,7 @@ function Optimize-Network {
     netsh int tcp set global timestamps=disabled    2>$null | Out-Null
     Write-OK "TCP: Nagle off, ACK immediate, SACK enabled, auto-tuning normal, ECN on"
 
-    # ── Disable QoS packet scheduler reserve (default reserves 20% bandwidth)
-    Write-Step "Disabling QoS bandwidth reservation…"
+    Write-Step "Disabling QoS bandwidth reservation..."
     Set-Reg "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" "NonBestEffortLimit" 0
     Write-OK "QoS reservation removed  (was reserving up to 20% bandwidth)"
 
@@ -426,49 +397,41 @@ function Optimize-Network {
 
 function Optimize-Explorer {
     Show-Banner
-    Write-Host "  🗂  Explorer & UI Tweaks`n" -ForegroundColor Cyan
+    Write-Host "  [UI] Explorer & UI Tweaks`n" -ForegroundColor Cyan
 
-    $advPath  = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-    $cdmPath  = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+    $advPath   = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+    $cdmPath   = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
     $themePath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
     $deskPath  = "HKCU:\Control Panel\Desktop"
 
-    # Show file extensions
-    Write-Step "Showing file extensions…"
+    Write-Step "Showing file extensions..."
     Set-Reg $advPath "HideFileExt" 0
     Write-OK "File extensions visible"
 
-    # Show hidden files
-    Write-Step "Showing hidden files…"
+    Write-Step "Showing hidden files..."
     Set-Reg $advPath "Hidden" 1
     Write-OK "Hidden files visible"
 
-    # Full path in title bar
-    Write-Step "Showing full path in Explorer title bar…"
+    Write-Step "Showing full path in Explorer title bar..."
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CabinetState" "FullPath" 1
     Write-OK "Full path in title bar enabled"
 
-    # MenuShowDelay — reduce from 400ms to 50ms
-    # Controls how fast cascading menus appear on hover (Win32 legacy menus only)
-    Write-Step "Reducing menu show delay (400ms → 50ms)…"
+    Write-Step "Reducing menu show delay (400ms to 50ms)..."
     Set-Reg $deskPath "MenuShowDelay" "50" "String"
-    Write-OK "MenuShowDelay = 50ms  (default: 400ms — affects right-click & cascading menus)"
-    Write-Sub "Modern Start menu and UWP apps are not affected by this"
+    Write-OK "MenuShowDelay = 50ms  (default: 400ms)"
+    Write-Sub "Affects right-click and cascading menus; not UWP/Start menu"
 
-    # Disable Bing in Start
-    Write-Step "Disabling Bing search in Start Menu…"
+    Write-Step "Disabling Bing search in Start Menu..."
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "BingSearchEnabled" 0
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "CortanaConsent"    0
     Write-OK "Bing search disabled"
 
-    # Dark mode
-    Write-Step "Enabling dark mode…"
+    Write-Step "Enabling dark mode..."
     Set-Reg $themePath "AppsUseLightTheme"    0
     Set-Reg $themePath "SystemUsesLightTheme" 0
     Write-OK "Dark mode enabled"
 
-    # Lock screen & Start ads
-    Write-Step "Disabling lock screen ads, Start suggestions…"
+    Write-Step "Disabling lock screen ads, Start suggestions..."
     @(
         "RotatingLockScreenOverlayEnabled"
         "SubscribedContent-338387Enabled"
@@ -480,37 +443,31 @@ function Optimize-Explorer {
         "PreInstalledAppsEnabled"
         "OemPreInstalledAppsEnabled"
     ) | ForEach-Object { Set-Reg $cdmPath $_ 0 }
-    Write-OK "Lock screen ads, Start suggestions disabled"
+    Write-OK "Lock screen ads and Start suggestions disabled"
 
-    # News & Interests
-    Write-Step "Hiding News & Interests from taskbar…"
+    Write-Step "Hiding News & Interests from taskbar..."
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" "ShellFeedsTaskbarViewMode" 2
     Write-OK "News & Interests hidden"
 
-    # Taskbar left align (Windows 11)
-    Write-Step "Setting taskbar alignment to Left (Win11)…"
+    Write-Step "Setting taskbar alignment to Left (Win11)..."
     Set-Reg $advPath "TaskbarAl" 0
     Write-OK "Taskbar aligned left"
 
-    # Old right-click context menu (Win11)
-    Write-Step "Restoring classic right-click context menu (Win11)…"
+    Write-Step "Restoring classic right-click context menu (Win11)..."
     $clsid = "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"
     Set-Reg $clsid "(Default)" "" "String"
     Write-OK "Classic context menu restored  (no more 'Show more options')"
 
-    # OneDrive — remove from Explorer sidebar
-    Write-Step "Hiding OneDrive from Explorer sidebar…"
+    Write-Step "Hiding OneDrive from Explorer sidebar..."
     Set-Reg "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" "System.IsPinnedToNameSpaceTree" 0 | Out-Null
     Set-Reg "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" "System.IsPinnedToNameSpaceTree" 0 | Out-Null
     Write-OK "OneDrive removed from Explorer sidebar"
 
-    # No low disk space warnings
-    Write-Step "Disabling low disk space warnings…"
+    Write-Step "Disabling low disk space warnings..."
     Set-Reg "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" "NoLowDiskSpaceChecks" 1
     Write-OK "Low disk space popups disabled"
 
-    # Restart Explorer
-    Write-Step "Restarting Explorer to apply changes…"
+    Write-Step "Restarting Explorer to apply changes..."
     Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 800
     Start-Process explorer
@@ -534,8 +491,8 @@ function Run-All {
     Optimize-Network
     Optimize-Explorer
     Show-Banner
-    Write-Host "  ✅ All optimizations applied!" -ForegroundColor Green
-    Write-Host "  ⚠  Reboot recommended for all changes to take effect." -ForegroundColor Yellow
+    Write-Host "  [OK] All optimizations applied!" -ForegroundColor Green
+    Write-Host "  [!]  Reboot recommended for all changes to take effect." -ForegroundColor Yellow
     Write-Host ""
     Pause-Back
 }
@@ -547,15 +504,15 @@ function Run-All {
 while ($true) {
     Show-Banner
 
-    Write-Host "  [1]  ⚡ Performance    power plan, SvcHostSplitThresholdInKB, SysMain,"
-    Write-Host "                         PowerThrottling, shutdown timeouts, startup delay"
-    Write-Host "  [2]  🔒 Privacy        telemetry, Cortana, ads, camera, error reporting"
-    Write-Host "  [3]  🚀 Services       disable 17 unnecessary Windows services"
-    Write-Host "  [4]  🗑  Junk Cleaner  temp files, prefetch, WU cache, Disk Cleanup"
-    Write-Host "  [5]  🌐 Network        DNS picker, IRPStackSize, Nagle, QoS, TCP tweaks"
-    Write-Host "  [6]  🗂  Explorer & UI  MenuShowDelay, dark mode, classic menu, OneDrive"
-    Write-Host "  [A]  ✅ Run ALL        (creates registry backup first)"
-    Write-Host "  [B]  💾 Backup registry only"
+    Write-Host "  [1]  Performance    power plan, SvcHostSplitThresholdInKB, SysMain,"
+    Write-Host "                      PowerThrottling, shutdown timeouts, startup delay"
+    Write-Host "  [2]  Privacy        telemetry, Cortana, ads, camera, error reporting"
+    Write-Host "  [3]  Services       disable 17 unnecessary Windows services"
+    Write-Host "  [4]  Junk Cleaner   temp files, prefetch, WU cache, Disk Cleanup"
+    Write-Host "  [5]  Network        DNS picker, IRPStackSize, Nagle, QoS, TCP tweaks"
+    Write-Host "  [6]  Explorer & UI  MenuShowDelay, dark mode, classic menu, OneDrive"
+    Write-Host "  [A]  Run ALL        (creates registry backup first)"
+    Write-Host "  [B]  Backup registry only"
     Write-Host "  [Q]  Exit"
     Write-Host ""
 
