@@ -193,17 +193,21 @@ $CAT_LEGEND = "Browser * Chat * Design * Dev * Gaming * Media * Office * Securit
 
 # ════════════════════════════════════════════════════════════
 #  WINGET EXIT CODES
+#  Maps exit code → @{ symbol; color; message; useFallback }
 # ════════════════════════════════════════════════════════════
-# Maps exit code → @{ symbol; color; message; useFallback }
 $WINGET_CODES = @{
-    0            = @{ S = "+"; C = $FG.Green;  M = "Installed";          FB = $false }
-    -1978335189  = @{ S = "o"; C = $FG.Yellow; M = "Already installed";  FB = $false }
-    -1978335215  = @{ S = "o"; C = $FG.Yellow; M = "Already installed";  FB = $false }
-    -1978335138  = @{ S = "!"; C = $FG.Yellow; M = "No applicable installer (trying fallback)"; FB = $true  }
-    -1978335106  = @{ S = "!"; C = $FG.Yellow; M = "Needs interactive install (trying fallback)"; FB = $true  }
-    -1978335153  = @{ S = "!"; C = $FG.Yellow; M = "App is running — close it and retry"; FB = $false }
-    -1978335147  = @{ S = "~"; C = $FG.Cyan;   M = "Installed — reboot required"; FB = $false }
-    -1978335135  = @{ S = "x"; C = $FG.Red;    M = "Install failed — trying fallback"; FB = $true  }
+    0            = @{ S = "+"; C = $FG.Green;  M = "Installed";                                        FB = $false }
+    -1978335189  = @{ S = "o"; C = $FG.Yellow; M = "Already installed";                               FB = $false }
+    -1978335215  = @{ S = "o"; C = $FG.Yellow; M = "Already installed";                               FB = $false }
+    -1978335212  = @{ S = "o"; C = $FG.Yellow; M = "Already installed (newer version present)";       FB = $false }
+    -1978335141  = @{ S = "o"; C = $FG.Yellow; M = "No available upgrade found";                      FB = $false }
+    -1978335138  = @{ S = "!"; C = $FG.Yellow; M = "No applicable installer (trying fallback)";       FB = $true  }
+    -1978335106  = @{ S = "!"; C = $FG.Yellow; M = "Needs interactive install (trying fallback)";     FB = $true  }
+    -1978335153  = @{ S = "!"; C = $FG.Yellow; M = "App is running — close it and retry";             FB = $false }
+    -1978335147  = @{ S = "~"; C = $FG.Cyan;   M = "Installed — reboot required";                    FB = $false }
+    -1978335135  = @{ S = "x"; C = $FG.Red;    M = "Install failed — trying fallback";                FB = $true  }
+    -1978335239  = @{ S = "x"; C = $FG.Red;    M = "Package not found — trying fallback";             FB = $true  }
+    -1978335227  = @{ S = "x"; C = $FG.Red;    M = "No applicable installer found — trying fallback"; FB = $true  }
 }
 
 # ════════════════════════════════════════════════════════════
@@ -312,6 +316,95 @@ function Draw {
 }
 
 # ════════════════════════════════════════════════════════════
+#  WINGET PROGRESS BAR
+#  Runs winget and parses its stdout for a live progress bar.
+#  winget outputs lines like:
+#    "Downloading  https://..."
+#    "  ██████░░░░  60%"
+#    "Installing ..."
+#  We capture these and re-render a single bar line in-place.
+# ════════════════════════════════════════════════════════════
+function Invoke-WingetWithProgress {
+    param(
+        [string]$AppID,
+        [string]$AppName
+    )
+
+    $W        = [Console]::WindowWidth
+    $barWidth = 30
+
+    # Reserve two lines: [1] status text, [2] progress bar
+    [Console]::Write("  $($FG.DarkGray)Contacting winget...$RESET`n")
+    [Console]::Write("  $($FG.Cyan)[$('.' * $barWidth)]   0%$RESET  `n")
+
+    # Row of the progress bar (we'll overwrite it)
+    $barRow = [Console]::CursorTop - 1
+
+    $phase   = "Downloading"
+    $percent = 0
+
+    # -- parse a winget progress line like "  ██████░░  45%" -------
+    function Parse-WingetLine([string]$line) {
+        # percent number anywhere on line
+        if ($line -match '(\d{1,3})\s*%') {
+            return [int]$matches[1]
+        }
+        return -1
+    }
+
+    # -- redraw the progress bar row --------------------------------
+    function Write-ProgressBar([int]$pct, [string]$phaseText) {
+        $filled  = [int](($pct / 100) * $barWidth)
+        $empty   = $barWidth - $filled
+        $bar     = ("█" * $filled) + ("░" * $empty)
+        $label   = "${phaseText}  $($pct.ToString().PadLeft(3))%"
+        $line    = "  $($FG.Cyan)[${bar}]  $($FG.White)${label}$RESET"
+        # move cursor to bar row, clear line, redraw
+        [Console]::SetCursorPosition(0, $barRow)
+        [Console]::Write("$ESC[2K" + $line)
+        [Console]::SetCursorPosition(0, $barRow + 1)
+    }
+
+    # -- launch winget as a job so we can stream output --------------
+    $job = Start-Job -ScriptBlock {
+        param($id)
+        & winget install --id $id --silent `
+            --accept-package-agreements `
+            --accept-source-agreements 2>&1
+    } -ArgumentList $AppID
+
+    # Poll the job output while it runs
+    while ($job.State -eq 'Running') {
+        $lines = Receive-Job $job -Keep 2>$null
+        foreach ($ln in $lines) {
+            $ln = "$ln".Trim()
+            if ($ln -match 'Download') { $phase = "Downloading" }
+            elseif ($ln -match 'Install|Verif|Configur') { $phase = "Installing " }
+            elseif ($ln -match 'Hash|Validat') { $phase = "Verifying  " }
+
+            $p = Parse-WingetLine $ln
+            if ($p -ge 0 -and $p -ge $percent) { $percent = $p }
+        }
+        Write-ProgressBar $percent $phase
+        Start-Sleep -Milliseconds 120
+    }
+
+    # Drain remaining output after job finishes
+    $allLines = Receive-Job $job 2>$null
+    foreach ($ln in $allLines) {
+        $p = Parse-WingetLine "$ln"
+        if ($p -ge 0 -and $p -ge $percent) { $percent = $p }
+    }
+    Remove-Job $job -Force
+
+    # Show 100% bar briefly
+    Write-ProgressBar 100 "Done       "
+    Start-Sleep -Milliseconds 200
+
+    return $LASTEXITCODE
+}
+
+# ════════════════════════════════════════════════════════════
 #  FALLBACK INSTALLER — opens download page in browser
 # ════════════════════════════════════════════════════════════
 function Run-Fallback {
@@ -322,7 +415,6 @@ function Run-Fallback {
         return $false
     }
 
-    # Try to download .exe/.msi directly; if it's a webpage, open browser
     $url = $app.FallbackURL
     $isDirectFile = $url -match '\.(exe|msi|zip|7z)(\?.*)?$'
 
@@ -356,7 +448,6 @@ function Run-Fallback {
         }
     }
 
-    # Not a direct file, or download failed — open browser
     [Console]::Write("  $($FG.Yellow)~ Opening download page in browser...$RESET`n`n")
     Start-Process $url
     return $false
@@ -368,7 +459,7 @@ function Run-Fallback {
 function Run-Install {
     param($toInstall)
 
-    [Console]::CursorVisible = $true
+    [Console]::CursorVisible = $false
     Clear-Host
 
     $W       = [Console]::WindowWidth
@@ -387,28 +478,23 @@ function Run-Install {
         $catFg  = if ($CAT_FG[$app.Cat]) { $CAT_FG[$app.Cat] } else { $FG.Gray }
 
         [Console]::Write("  $($FG.DarkGray)[$i/$total] $($FG.White)$($app.Name)  $catFg[$($app.Cat)]$RESET`n")
-        [Console]::Write("  $($FG.Cyan)[$bar] $pct%$RESET`n")
 
-        # ── Try winget first ─────────────────────────────────
-        winget install --id $app.ID --silent `
-            --accept-package-agreements `
-            --accept-source-agreements 2>&1 | Out-Null
+        # ── Run winget with live progress bar ───────────────
+        $code = Invoke-WingetWithProgress -AppID $app.ID -AppName $app.Name
+        [Console]::Write("`n")
 
-        $code = $LASTEXITCODE
         $info = $WINGET_CODES[$code]
 
         if ($info) {
             [Console]::Write("  $($info.C)[$($info.S)] $($info.M)$RESET`n")
 
             if ($info.FB) {
-                # ── Fallback ─────────────────────────────────
                 $ok = Run-Fallback $app
                 if ($ok) { $fallback++ } else { $failed++ }
             } elseif ($code -eq 0) {
                 $done++
                 [Console]::Write("`n")
             } elseif ($code -eq -1978335153) {
-                # App in use — skip, count as failed
                 $failed++
                 [Console]::Write("`n")
             } else {
