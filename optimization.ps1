@@ -1478,7 +1478,9 @@ function Clean-Path {
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     $after  = (Get-ChildItem $Path -Recurse -Force -Filter $Pattern -ErrorAction SilentlyContinue |
                Measure-Object -Property Length -Sum).Sum
-    return [Math]::Round((([int64]($before ?? 0)) - ([int64]($after ?? 0))) / 1MB, 1)
+    $beforeValue = if ($null -ne $before) { [int64]$before } else { 0 }
+    $afterValue  = if ($null -ne $after)  { [int64]$after }  else { 0 }
+    return [Math]::Round(($beforeValue - $afterValue) / 1MB, 1)
 }
 
 # ════════════════════════════════════════════════════════════
