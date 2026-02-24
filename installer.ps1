@@ -164,6 +164,21 @@ $ALL_APPS = @(
 ) | Sort-Object Name
 
 # ════════════════════════════════════════════════════════════
+#  SYSINTERNALS PORTABLE APPS — detected via filesystem,
+#  not via winget list (they install as portable .exe to
+#  %ProgramFiles%\Sysinternals or current dir)
+# ════════════════════════════════════════════════════════════
+$SYSINTERNALS_PATHS = @{
+    "Microsoft.Sysinternals.Autoruns"     = @(
+        "$env:ProgramFiles\Sysinternals\Autoruns.exe",
+        "$env:ProgramFiles\Sysinternals Suite\Autoruns.exe",
+        "$env:SystemDrive\Tools\Sysinternals\Autoruns.exe",
+        "$env:USERPROFILE\Desktop\Autoruns.exe",
+        "$env:LOCALAPPDATA\Microsoft\WindowsApps\autoruns.exe"
+    )
+}
+
+# ════════════════════════════════════════════════════════════
 #  ANSI COLOR MAP
 # ════════════════════════════════════════════════════════════
 $ESC   = [char]27
@@ -196,9 +211,11 @@ $CAT_LEGEND = "Browser * Chat * Design * Dev * Gaming * Media * Office * Securit
 # ════════════════════════════════════════════════════════════
 $WINGET_CODES = @{
     0            = @{ S = "+"; C = $FG.Green;  M = "Installed";                                        FB = $false }
+    # -1978335189 / -1978335215: already installed (exact or store match)
     -1978335189  = @{ S = "o"; C = $FG.Yellow; M = "Already installed";                               FB = $false }
     -1978335215  = @{ S = "o"; C = $FG.Yellow; M = "Already installed";                               FB = $false }
-    -1978335212  = @{ S = "o"; C = $FG.Yellow; M = "Already installed (newer version present)";       FB = $false }
+    # -1978335212: already installed AND machine has newer version — treat as success, NOT an error
+    -1978335212  = @{ S = "o"; C = $FG.Green;  M = "Already installed (up to date / newer)";          FB = $false }
     -1978335141  = @{ S = "o"; C = $FG.Yellow; M = "No available upgrade found";                      FB = $false }
     -1978335138  = @{ S = "!"; C = $FG.Yellow; M = "No applicable installer (trying fallback)";       FB = $true  }
     -1978335106  = @{ S = "!"; C = $FG.Yellow; M = "Needs interactive install (trying fallback)";     FB = $true  }
@@ -223,7 +240,7 @@ $script:dlBarRow   = 0
 $script:dlBarWidth = 30
 
 # ════════════════════════════════════════════════════════════
-#  PROGRESS BAR HELPERS  (top-level for PS5.1 compatibility)
+#  PROGRESS BAR HELPERS
 # ════════════════════════════════════════════════════════════
 function Write-WingetBar {
     param([int]$pct, [string]$phaseText)
@@ -247,6 +264,7 @@ function Write-DownloadBar {
 
 # ════════════════════════════════════════════════════════════
 #  STARTUP SCAN — detect already-installed apps via winget
+#  + filesystem check for portable/Sysinternals apps
 # ════════════════════════════════════════════════════════════
 function Start-InstalledScan {
     [Console]::CursorVisible = $false
@@ -269,12 +287,20 @@ function Start-InstalledScan {
         Start-Sleep -Milliseconds 80
     }
 
-    $lines   = Receive-Job $job 2>$null
+    $lines = Receive-Job $job 2>$null
     Remove-Job $job -Force
-    $rawText = $lines -join "`n"
 
-    # Parse winget list as a fixed-width table — find the Id column position
-    # and extract exact IDs to avoid false positives from substring matching.
+    # ── Parse winget list as fixed-width table ────────────
+    # Strategy:
+    #   1. Find header row containing "Name", "Id", "Version"
+    #   2. Calculate exact character column range for "Id"
+    #   3. Extract only the Id column from each data row
+    #   4. Exact HashSet lookup — no substring, no regex
+    #
+    # Also handle: MS Store GUIDs (e.g. 9NKSQGP7F2NH),
+    # dotted IDs (Python.Python.3), lowercase (itch.io),
+    # and IDs that appear ONLY in Name column for some packages.
+
     $parsedIDs = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
     $headerIdx  = -1
@@ -283,10 +309,11 @@ function Start-InstalledScan {
 
     for ($li = 0; $li -lt $lines.Count; $li++) {
         $ln = "$($lines[$li])"
-        # Header line contains both "Name" and "Id" and "Version"
-        if ($ln -match '\bName\b' -and $ln -match '\bId\b' -and $ln -match '\bVersion\b') {
+        # Header: must have Name, Id, Version as column headers
+        if ($ln -match '^\s*Name\s+Id\s+Version') {
             $headerIdx  = $li
             $idColStart = $ln.IndexOf('Id')
+            # End of Id column = start of Version column
             $versionPos = $ln.IndexOf('Version')
             if ($versionPos -gt $idColStart) { $idColEnd = $versionPos }
             break
@@ -294,10 +321,12 @@ function Start-InstalledScan {
     }
 
     if ($headerIdx -ge 0 -and $idColStart -ge 0) {
-        # Skip header row and separator (dashes) row
+        # Skip header row + separator (dashes) row
         for ($li = $headerIdx + 2; $li -lt $lines.Count; $li++) {
             $ln = "$($lines[$li])"
+            if ($ln.Trim() -eq '' -or $ln -match '^[-\s]+$') { continue }
             if ($ln.Length -le $idColStart) { continue }
+
             $extracted = if ($idColEnd -gt 0 -and $ln.Length -gt $idColEnd) {
                 $ln.Substring($idColStart, $idColEnd - $idColStart).Trim()
             } else {
@@ -305,16 +334,45 @@ function Start-InstalledScan {
             }
             if ($extracted -ne '') { [void]$parsedIDs.Add($extracted) }
         }
-        # Match parsed IDs exactly against our app database
+
         foreach ($app in $ALL_APPS) {
             if ($parsedIDs.Contains($app.ID)) { [void]$installedIDs.Add($app.ID) }
         }
     } else {
-        # Fallback if table parse failed: word-boundary match (better than bare substring)
+        # Fallback: word-boundary regex (no bare substring matching)
+        $rawText = $lines -join "`n"
         foreach ($app in $ALL_APPS) {
             $escaped = [regex]::Escape($app.ID)
-            if ($rawText -match "(?i)(^|\s)${escaped}(\s|$)") {
+            if ($rawText -match "(?i)(^|[\s\|])${escaped}([\s\|]|$)") {
                 [void]$installedIDs.Add($app.ID)
+            }
+        }
+    }
+
+    # ── Filesystem check for Sysinternals portable apps ───
+    # winget installs these as portable .exe — they don't
+    # appear reliably in `winget list`, so we check disk.
+    foreach ($kvp in $SYSINTERNALS_PATHS.GetEnumerator()) {
+        $appID = $kvp.Key
+        foreach ($path in $kvp.Value) {
+            if (Test-Path $path) {
+                [void]$installedIDs.Add($appID)
+                break
+            }
+        }
+    }
+
+    # ── Also check winget export for Sysinternals ─────────
+    # winget sometimes tracks portables differently; search
+    # raw output for the Sysinternals ID pattern too.
+    if ($lines) {
+        $rawText = $lines -join "`n"
+        foreach ($kvp in $SYSINTERNALS_PATHS.GetEnumerator()) {
+            if (-not $installedIDs.Contains($kvp.Key)) {
+                $escaped = [regex]::Escape($kvp.Key)
+                if ($rawText -match "(?i)${escaped}") {
+                    [void]$installedIDs.Add($kvp.Key)
+                }
             }
         }
     }
@@ -396,17 +454,16 @@ function Draw {
         $isInstalled = $installedIDs.Contains($app.ID)
         $catFg       = if ($CAT_FG[$app.Cat]) { $CAT_FG[$app.Cat] } else { $FG.Gray }
 
-        # Box icon: checked=[*]  installed=[ ✓ ]  plain=[ ]
-        $box = if ($isChecked)   { " [*] " }
+        # Box icon: checked=[*]  installed=[+]  plain=[ ]
+        $box = if ($isChecked)       { " [*] " }
                elseif ($isInstalled) { " [+] " }
-               else { " [ ] " }
+               else                  { " [ ] " }
 
         $dispName = if ($app.Name.Length -gt $nameW) { $app.Name.Substring(0,$nameW-1) + "~" } else { $app.Name }
         $namePad  = $dispName.PadRight($nameW)
         $catPad   = ("[" + $app.Cat + "]").PadRight($catW)
 
         if ($isInstalled) {
-            # Installed: full green row
             $boxFg  = if ($isChecked) { $FG.Yellow } else { $FG.Green }
             $nameFg = $FG.Green
             if ($isCursor) {
@@ -454,7 +511,7 @@ function Invoke-WingetWithProgress {
 
     $job = Start-Job -ScriptBlock {
         param($id)
-        & winget install --id $id --silent `
+        & winget install --id $id --exact --silent `
             --accept-package-agreements `
             --accept-source-agreements 2>&1
     } -ArgumentList $AppID
@@ -477,8 +534,15 @@ function Invoke-WingetWithProgress {
 
     $allLines = Receive-Job $job 2>$null
     Remove-Job $job -Force
+
+    # Capture exit code from winget output lines
+    # winget returns its exit code as the job's LastExitCode,
+    # but since we use Start-Job we need to read it differently.
+    # Parse for known result strings to get reliable code.
+    $exitCode = $LASTEXITCODE
     foreach ($ln in $allLines) {
-        if ("$ln" -match '(\d{1,3})\s*%') {
+        $s = "$ln".Trim()
+        if ($s -match '(\d{1,3})\s*%') {
             $p = [int]$matches[1]
             if ($p -ge $percent) { $percent = $p }
         }
@@ -486,16 +550,29 @@ function Invoke-WingetWithProgress {
     Write-WingetBar 100 "Done       "
     Start-Sleep -Milliseconds 150
 
-    return $LASTEXITCODE
+    # Re-run synchronously to capture real exit code
+    # (Start-Job doesn't reliably propagate $LASTEXITCODE from native cmds)
+    # We already have output; now we need the code.
+    # Strategy: check allLines for winget result messages.
+    $exitCode = 0  # default assume success if output looks OK
+    $allOutput = $allLines -join "`n"
+
+    if ($allOutput -match 'No applicable installer|0x8a15002b') { $exitCode = -1978335227 }
+    elseif ($allOutput -match 'already installed.*newer|0x8a15000c')    { $exitCode = -1978335212 }
+    elseif ($allOutput -match 'No newer package|already installed|0x8a15000b|0x8a15000d') { $exitCode = -1978335189 }
+    elseif ($allOutput -match 'Package is not applicable|0x8a15007e')    { $exitCode = -1978335138 }
+    elseif ($allOutput -match 'not found|0x8a150049')                    { $exitCode = -1978335239 }
+    elseif ($allOutput -match 'Install failed|0x8a15000f')               { $exitCode = -1978335135 }
+    elseif ($allOutput -match 'Installer failed|msiexec')                { $exitCode = -1978335135 }
+    elseif ($allOutput -match 'reboot.*required|restart.*required')      { $exitCode = -1978335147 }
+    elseif ($allOutput -match 'currently running|0x8a150057')            { $exitCode = -1978335153 }
+    elseif ($allOutput -match 'Successfully installed|installation complete') { $exitCode = 0 }
+
+    return $exitCode
 }
 
 # ════════════════════════════════════════════════════════════
 #  SMART FALLBACK
-#
-#  Three-stage strategy (silent → silent → GUI last resort):
-#   1. Download installer from FallbackURL with progress bar
-#   2. Try fully silent install (/VERYSILENT or /qn for MSI)
-#   3. If silent fails → launch GUI installer and wait for user
 # ════════════════════════════════════════════════════════════
 function Invoke-SmartFallback {
     param($app)
@@ -509,9 +586,9 @@ function Invoke-SmartFallback {
 
     # Detect extension from URL
     $ext = ".exe"
-    if ($url -match '\.msi(\?|$)')        { $ext = ".msi" }
-    elseif ($url -match '\.zip(\?|$)')    { $ext = ".zip" }
-    elseif ($url -match '\.7z(\?|$)')     { $ext = ".7z" }
+    if ($url -match '\.msi(\?|$)')            { $ext = ".msi" }
+    elseif ($url -match '\.zip(\?|$)')        { $ext = ".zip" }
+    elseif ($url -match '\.7z(\?|$)')         { $ext = ".7z" }
     elseif ($url -match '\.msixbundle(\?|$)') { $ext = ".msixbundle" }
 
     $safeAppName = $app.Name -replace '[^a-zA-Z0-9_]', '_'
@@ -543,7 +620,6 @@ function Invoke-SmartFallback {
             Start-Sleep -Milliseconds 100
         }
 
-        # Draw 100%
         $bar = "$([char]0x2588)" * $script:dlBarWidth
         [Console]::SetCursorPosition(0, $script:dlBarRow)
         [Console]::Write("$ESC[2K  $($FG.Green)[${bar}]  100% downloaded $RESET")
@@ -581,17 +657,21 @@ function Invoke-SmartFallback {
             $exitCode = 0
         }
         elseif ($ext -eq ".zip") {
-            [Console]::Write("  $($FG.Yellow)~ Archive — extracting to Desktop\$($app.Name)...$RESET`n")
-            Expand-Archive -Path $tmpFile `
-                -DestinationPath "$env:USERPROFILE\Desktop\$($app.Name)" `
-                -Force -ErrorAction Stop
-            [Console]::Write("  $($FG.Green)+ Extracted to Desktop\$($app.Name)$RESET`n`n")
+            # Special handling for Sysinternals — extract and place in %ProgramFiles%\Sysinternals
+            $destDir = if ($app.ID -like "Microsoft.Sysinternals.*") {
+                "$env:ProgramFiles\Sysinternals"
+            } else {
+                "$env:USERPROFILE\Desktop\$($app.Name)"
+            }
+            [Console]::Write("  $($FG.Yellow)~ Archive — extracting to $destDir...$RESET`n")
+            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+            Expand-Archive -Path $tmpFile -DestinationPath $destDir -Force -ErrorAction Stop
+            [Console]::Write("  $($FG.Green)+ Extracted to $destDir$RESET`n`n")
             Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
             [void]$installedIDs.Add($app.ID)
             return $true
         }
         elseif ($ext -eq ".7z") {
-            # 7z archives: try 7-Zip CLI first, fallback to Expand-Archive won't work
             $szCmd  = Get-Command "7z.exe" -ErrorAction SilentlyContinue
             $szPath = if ($szCmd) { $szCmd.Source } else { $null }
             if ($szPath) {
@@ -606,13 +686,13 @@ function Invoke-SmartFallback {
             return $true
         }
         else {
-            # .exe — try Inno Setup style first (/VERYSILENT)
+            # .exe — try Inno Setup style first
             $proc = Start-Process $tmpFile `
                 -ArgumentList "/VERYSILENT /NORESTART /SP-" `
                 -Wait -PassThru -NoNewWindow
             $exitCode = $proc.ExitCode
 
-            # If that failed, try NSIS-style (/S)
+            # If that failed, try NSIS-style
             if ($exitCode -notin @(0, 1641, 3010)) {
                 $proc = Start-Process $tmpFile `
                     -ArgumentList "/S /norestart" `
@@ -626,7 +706,6 @@ function Invoke-SmartFallback {
         $exitCode = -99
     }
 
-    # ── Stage 3: Check — if OK done, else show GUI ─────────
     if ($exitCode -in @(0, 1641, 3010)) {
         [Console]::Write("  $($FG.Green)+ Silent install complete$RESET`n`n")
         Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
@@ -634,7 +713,7 @@ function Invoke-SmartFallback {
         return $true
     }
 
-    # Last resort: run installer GUI and wait
+    # Last resort: GUI installer
     [Console]::Write("  $($FG.Yellow)! Silent flags failed (exit $exitCode) — showing installer GUI$RESET`n")
     [Console]::Write("  $($FG.DarkGray)Finish the wizard, then press any key here...$RESET`n")
     Start-Process $tmpFile
@@ -678,15 +757,30 @@ function Run-Install {
             [Console]::Write("  $($info.C)[$($info.S)] $($info.M)$RESET`n")
 
             if ($info.FB) {
+                # Try fallback for failed installs
                 $ok = Invoke-SmartFallback $app
                 if ($ok) { $fallback++ } else { $failed++ }
             }
             elseif ($code -eq 0) {
+                # Successfully installed via winget
+                [void]$installedIDs.Add($app.ID)
+                $done++
+                [Console]::Write("`n")
+            }
+            elseif ($code -in @(-1978335189, -1978335215, -1978335212, -1978335141)) {
+                # Already installed / up to date — mark as installed in UI
+                [void]$installedIDs.Add($app.ID)
+                $skipped++
+                [Console]::Write("`n")
+            }
+            elseif ($code -eq -1978335147) {
+                # Reboot required — still counts as installed
                 [void]$installedIDs.Add($app.ID)
                 $done++
                 [Console]::Write("`n")
             }
             elseif ($code -eq -1978335153) {
+                # App is running — can't install now
                 $failed++
                 [Console]::Write("`n")
             }
