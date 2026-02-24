@@ -212,11 +212,38 @@ $WINGET_CODES = @{
 # ════════════════════════════════════════════════════════════
 #  STATE
 # ════════════════════════════════════════════════════════════
-$checked      = [System.Collections.Generic.HashSet[int]]::new()
+$checked      = New-Object 'System.Collections.Generic.HashSet[int]'
 $cursor       = 0
 $searchStr    = ""
-$installedIDs = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-$script:dlPercent = 0
+$installedIDs = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+$script:dlPercent  = 0
+$script:wgBarRow   = 0
+$script:wgBarWidth = 30
+$script:dlBarRow   = 0
+$script:dlBarWidth = 30
+
+# ════════════════════════════════════════════════════════════
+#  PROGRESS BAR HELPERS  (top-level for PS5.1 compatibility)
+# ════════════════════════════════════════════════════════════
+function Write-WingetBar {
+    param([int]$pct, [string]$phaseText)
+    $filled = [int](($pct / 100) * $script:wgBarWidth)
+    $empty  = $script:wgBarWidth - $filled
+    $bar    = ("$([char]0x2588)" * $filled) + ("$([char]0x2591)" * $empty)
+    $label  = "${phaseText}  $($pct.ToString().PadLeft(3))%"
+    [Console]::SetCursorPosition(0, $script:wgBarRow)
+    [Console]::Write("$ESC[2K  $($FG.Cyan)[${bar}]  $($FG.White)${label}$RESET")
+    [Console]::SetCursorPosition(0, $script:wgBarRow + 1)
+}
+
+function Write-DownloadBar {
+    param([int]$pct)
+    $filled = [int](($pct / 100) * $script:dlBarWidth)
+    $bar    = ("$([char]0x2588)" * $filled) + ("$([char]0x2591)" * ($script:dlBarWidth - $filled))
+    [Console]::SetCursorPosition(0, $script:dlBarRow)
+    [Console]::Write("$ESC[2K  $($FG.Cyan)[${bar}]  $($FG.White)$($pct.ToString().PadLeft(3))% downloading...$RESET")
+    [Console]::SetCursorPosition(0, $script:dlBarRow + 1)
+}
 
 # ════════════════════════════════════════════════════════════
 #  STARTUP SCAN — detect already-installed apps via winget
@@ -289,7 +316,7 @@ function Draw {
     $scrollTop = [Math]::Max(0, $cursor - $half)
     $scrollTop = [Math]::Min($scrollTop, [Math]::Max(0, $total - $listH))
 
-    $sb = [System.Text.StringBuilder]::new($W * ($H + 2) * 8)
+    $sb = New-Object System.Text.StringBuilder ($W * ($H + 2) * 8)
     [void]$sb.Append("$ESC[H")
 
     # Title
@@ -378,22 +405,12 @@ function Draw {
 function Invoke-WingetWithProgress {
     param([string]$AppID)
 
-    $barWidth = 30
+    $script:wgBarWidth = 30
     [Console]::Write("  $($FG.DarkGray)Starting winget...$RESET`n")
-    [Console]::Write("  $($FG.Cyan)[$('.' * $barWidth)]   0%$RESET  `n")
-    $barRow  = [Console]::CursorTop - 1
+    [Console]::Write("  $($FG.Cyan)[$('.' * $script:wgBarWidth)]   0%$RESET  `n")
+    $script:wgBarRow = [Console]::CursorTop - 1
     $phase   = "Downloading"
     $percent = 0
-
-    function Write-WingetBar([int]$pct, [string]$phaseText) {
-        $filled = [int](($pct / 100) * $barWidth)
-        $empty  = $barWidth - $filled
-        $bar    = ("█" * $filled) + ("░" * $empty)
-        $label  = "${phaseText}  $($pct.ToString().PadLeft(3))%"
-        [Console]::SetCursorPosition(0, $barRow)
-        [Console]::Write("$ESC[2K  $($FG.Cyan)[${bar}]  $($FG.White)${label}$RESET")
-        [Console]::SetCursorPosition(0, $barRow + 1)
-    }
 
     $job = Start-Job -ScriptBlock {
         param($id)
@@ -463,23 +480,15 @@ function Invoke-SmartFallback {
     # ── Stage 1: Download with progress bar ───────────────
     [Console]::Write("  $($FG.Cyan)>> Fallback: downloading installer...$RESET`n")
 
-    $barWidth = 30
-    [Console]::Write("  $($FG.DarkGray)[$('.' * $barWidth)]   0%$RESET`n")
-    $dlBarRow = [Console]::CursorTop - 1
-
-    function Write-DownloadBar([int]$pct) {
-        $filled = [int](($pct / 100) * $barWidth)
-        $bar    = ("█" * $filled) + ("░" * ($barWidth - $filled))
-        [Console]::SetCursorPosition(0, $dlBarRow)
-        [Console]::Write("$ESC[2K  $($FG.Cyan)[${bar}]  $($FG.White)$($pct.ToString().PadLeft(3))% downloading...$RESET")
-        [Console]::SetCursorPosition(0, $dlBarRow + 1)
-    }
+    $script:dlBarWidth = 30
+    [Console]::Write("  $($FG.DarkGray)[$('.' * $script:dlBarWidth)]   0%$RESET`n")
+    $script:dlBarRow = [Console]::CursorTop - 1
 
     $dlSuccess = $false
     $script:dlPercent = 0
 
     try {
-        $wc = [System.Net.WebClient]::new()
+        $wc = New-Object System.Net.WebClient
         $wc.Headers.Add("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
         $null = Register-ObjectEvent -InputObject $wc -EventName DownloadProgressChanged `
@@ -495,10 +504,10 @@ function Invoke-SmartFallback {
         }
 
         # Draw 100%
-        $bar = "█" * $barWidth
-        [Console]::SetCursorPosition(0, $dlBarRow)
+        $bar = "$([char]0x2588)" * $script:dlBarWidth
+        [Console]::SetCursorPosition(0, $script:dlBarRow)
         [Console]::Write("$ESC[2K  $($FG.Green)[${bar}]  100% downloaded $RESET")
-        [Console]::SetCursorPosition(0, $dlBarRow + 1)
+        [Console]::SetCursorPosition(0, $script:dlBarRow + 1)
 
         Unregister-Event -SourceIdentifier "WTDLProg" -ErrorAction SilentlyContinue
         Remove-Event      -SourceIdentifier "WTDLProg" -ErrorAction SilentlyContinue
