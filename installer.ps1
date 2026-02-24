@@ -273,9 +273,49 @@ function Start-InstalledScan {
     Remove-Job $job -Force
     $rawText = $lines -join "`n"
 
-    foreach ($app in $ALL_APPS) {
-        if ($rawText -imatch [regex]::Escape($app.ID)) {
-            [void]$installedIDs.Add($app.ID)
+    # Parse winget list as a fixed-width table — find the Id column position
+    # and extract exact IDs to avoid false positives from substring matching.
+    $parsedIDs = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    $headerIdx  = -1
+    $idColStart = -1
+    $idColEnd   = -1
+
+    for ($li = 0; $li -lt $lines.Count; $li++) {
+        $ln = "$($lines[$li])"
+        # Header line contains both "Name" and "Id" and "Version"
+        if ($ln -match '\bName\b' -and $ln -match '\bId\b' -and $ln -match '\bVersion\b') {
+            $headerIdx  = $li
+            $idColStart = $ln.IndexOf('Id')
+            $versionPos = $ln.IndexOf('Version')
+            if ($versionPos -gt $idColStart) { $idColEnd = $versionPos }
+            break
+        }
+    }
+
+    if ($headerIdx -ge 0 -and $idColStart -ge 0) {
+        # Skip header row and separator (dashes) row
+        for ($li = $headerIdx + 2; $li -lt $lines.Count; $li++) {
+            $ln = "$($lines[$li])"
+            if ($ln.Length -le $idColStart) { continue }
+            $extracted = if ($idColEnd -gt 0 -and $ln.Length -gt $idColEnd) {
+                $ln.Substring($idColStart, $idColEnd - $idColStart).Trim()
+            } else {
+                $ln.Substring($idColStart).Trim().Split(' ')[0]
+            }
+            if ($extracted -ne '') { [void]$parsedIDs.Add($extracted) }
+        }
+        # Match parsed IDs exactly against our app database
+        foreach ($app in $ALL_APPS) {
+            if ($parsedIDs.Contains($app.ID)) { [void]$installedIDs.Add($app.ID) }
+        }
+    } else {
+        # Fallback if table parse failed: word-boundary match (better than bare substring)
+        foreach ($app in $ALL_APPS) {
+            $escaped = [regex]::Escape($app.ID)
+            if ($rawText -match "(?i)(^|\s)${escaped}(\s|$)") {
+                [void]$installedIDs.Add($app.ID)
+            }
         }
     }
 
