@@ -543,7 +543,8 @@ function Invoke-SmartFallback {
         }
         elseif ($ext -eq ".7z") {
             # 7z archives: try 7-Zip CLI first, fallback to Expand-Archive won't work
-            $szPath = (Get-Command "7z.exe" -ErrorAction SilentlyContinue)?.Source
+            $szCmd  = Get-Command "7z.exe" -ErrorAction SilentlyContinue
+            $szPath = if ($szCmd) { $szCmd.Source } else { $null }
             if ($szPath) {
                 & $szPath x "$tmpFile" -o"$env:USERPROFILE\Desktop\$($app.Name)" -y | Out-Null
             } else {
